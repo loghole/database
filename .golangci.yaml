@@ -5,9 +5,6 @@ run:
 linters:
   enable-all: true
   disable:
-   - goerr113
-   - godot
-   - nolintlint
    - gci
 linters-settings:
   gocritic:

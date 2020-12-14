@@ -4,5 +4,5 @@ GOTEST_PACKAGES = $(shell go list ./... | egrep -v '(pkg|cmd)')
 gotest:
 	go test -race -v -cover -coverprofile coverage.out $(GOTEST_PACKAGES)
 
-golint:
+lint:
 	golangci-lint run -v
