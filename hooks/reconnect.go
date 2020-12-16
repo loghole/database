@@ -7,28 +7,28 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/loghole/db/config"
-	"github.com/loghole/db/internal/dbsqlx"
 	"github.com/loghole/dbhook"
+
+	"github.com/loghole/db/internal/dbsqlx"
 )
 
 type ReconnectHook struct {
 	db     *sqlx.DB
-	config *config.Config
+	config *Config
 }
 
 var ErrCanRetry = errors.New("connection reconnect")
 
-func NewReconnectHook(db *sqlx.DB, cfg *config.Config) *ReconnectHook {
+func NewReconnectHook(db *sqlx.DB, config *Config) *ReconnectHook {
 	return &ReconnectHook{
 		db:     db,
-		config: cfg,
+		config: config,
 	}
 }
 
-func (rh *ReconnectHook) Call(ctx context.Context, input *dbhook.HookInput) (context.Context, error) {
+func (rh *ReconnectHook) Error(ctx context.Context, input *dbhook.HookInput) (context.Context, error) {
 	if input.Error != nil && isReconnectError(input.Error) {
-		tmpDB, err := dbsqlx.NewSQLx(rh.config.DriverName(), rh.config.DataSourceName())
+		tmpDB, err := dbsqlx.NewSQLx(rh.config.DriverName, rh.config.DataSourceName)
 		if err != nil {
 			return ctx, fmt.Errorf("reconnect error: %w", err)
 		}
