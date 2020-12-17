@@ -1,0 +1,22 @@
+version: "3"
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:v20.2.3
+    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080
+  
+  haproxy:
+    image: haproxy:2.3
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    depends_on:
+      - cockroachdb
+    
+  test:
+    image: golang:1.15-alpine
+    volumes:
+      - ../../:/app
+    working_dir: /app/tests/reconnect/
+    command: go run main.go
+    depends_on:
+      - cockroachdb
+      - haproxy

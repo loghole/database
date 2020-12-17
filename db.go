@@ -26,10 +26,12 @@ func New(cfg *Config, options ...Option) (db *sqlx.DB, err error) {
 		return nil, fmt.Errorf("wrap driver: %w", err)
 	}
 
-	db, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
+	tmpDB, err := dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
 	if err != nil {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
+
+	*db = *tmpDB
 
 	hooksCfg.Instance = getDBInstans(db)
 
