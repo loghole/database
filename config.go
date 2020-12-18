@@ -1,20 +1,20 @@
-package db
+package database
 
 import (
 	"fmt"
 
-	"github.com/loghole/db/hooks"
+	"github.com/loghole/database/hooks"
 )
 
-type DatabaseType string
+type DBType string
 
 const (
-	PostgresDatabase   DatabaseType = "postgres"
-	ClickhouseDatabase DatabaseType = "clickhouse"
-	SQLiteDatabase     DatabaseType = "sqlite3"
+	PostgresDatabase   DBType = "postgres"
+	ClickhouseDatabase DBType = "clickhouse"
+	SQLiteDatabase     DBType = "sqlite3"
 )
 
-func (d DatabaseType) String() string {
+func (d DBType) String() string {
 	return string(d)
 }
 
@@ -23,7 +23,7 @@ type Config struct {
 	User         string
 	Database     string
 	CertPath     string
-	Type         DatabaseType
+	Type         DBType
 	ReadTimeout  string
 	WriteTimeout string
 }

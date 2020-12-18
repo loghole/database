@@ -12,4 +12,5 @@ type Config struct {
 	DataSourceName string
 	DriverName     string
 	Instance       string
+	ReconnectFn    func() error
 }
