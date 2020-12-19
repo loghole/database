@@ -1,62 +1,62 @@
-package db
+package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
-	"github.com/loghole/db/config"
-	"github.com/loghole/db/hooks"
-	"github.com/loghole/db/internal/dbsqlx"
 	"github.com/loghole/dbhook"
-	"github.com/opentracing/opentracing-go"
+
+	"github.com/loghole/database/hooks"
+	"github.com/loghole/database/internal/dbsqlx"
 )
 
-const withHookDriverName = "%s-with-hook"
+const (
+	withHookDriverName  = "%s-with-hook-%s"
+	transactionSpanName = "SQL Tx"
+)
 
-type Config = config.Config
-
-type Option func(b *builder, db *sqlx.DB, cfg *Config)
-
-type builder struct {
-	tracerHook    *hooks.TracingHook
-	reconnectHook *hooks.ReconnectHook
+type DB struct {
+	*sqlx.DB
+	retryFunc RetryFunc
+	hooksCfg  *hooks.Config
+	baseCfg   *Config
 }
 
-func New(cfg *Config, options ...Option) (*sqlx.DB, error) {
+type (
+	TransactionFunc func(ctx context.Context, tx *sqlx.Tx) error
+	RetryFunc       func(err error) bool
+)
+
+func New(cfg *Config, options ...Option) (db *DB, err error) {
 	var (
-		err  error
-		db   = new(sqlx.DB)
-		bldr = applyOptions(db, cfg, options...)
+		hooksCfg = cfg.hookConfig()
+		builder  = applyOptions(hooksCfg, options...)
 	)
 
-	sql.Register(
-		fmt.Sprintf(withHookDriverName, cfg.DriverName()),
-		dbhook.Wrap(&pq.Driver{}, bldr.Hooks()),
-	)
+	hooksCfg.DriverName, err = wrapDriver(cfg.driverName(), builder.hook())
+	if err != nil {
+		return nil, fmt.Errorf("wrap driver: %w", err)
+	}
 
-	db, err = dbsqlx.NewSQLx(cfg.DriverName(), cfg.DataSourceName())
+	db = &DB{
+		retryFunc: builder.retryFunc,
+		hooksCfg:  hooksCfg,
+		baseCfg:   cfg,
+	}
+
+	db.DB, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
 	if err != nil {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
 
-	bldr.tracerHook.SetDBInstance(getDBInstans(db))
+	hooksCfg.Instance = getDBInstans(db.DB)
+	hooksCfg.ReconnectFn = db.reconnect
 
 	return db, nil
-}
-
-func WithTracingHook(tracer opentracing.Tracer) Option {
-	return func(b *builder, db *sqlx.DB, cfg *Config) {
-		b.tracerHook = hooks.NewTracingHook(tracer, cfg.Addr, cfg.User, cfg.Database, string(cfg.Type))
-	}
-}
-
-func WithReconnectHook() Option {
-	return func(b *builder, db *sqlx.DB, cfg *Config) {
-		b.reconnectHook = hooks.NewReconnectHook(db, cfg)
-	}
 }
 
 func getDBInstans(db *sqlx.DB) string {
@@ -67,30 +67,34 @@ func getDBInstans(db *sqlx.DB) string {
 	return strconv.Itoa(nodeID)
 }
 
-func applyOptions(db *sqlx.DB, cfg *Config, options ...Option) *builder {
-	b := new(builder)
-
-	for _, option := range options {
-		option(b, db, cfg)
+func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
+	if hook == nil { // skip wrapping for empty hook.
+		return driverName, nil
 	}
 
-	return b
+	// Open db for get original driver.
+	db, err := sql.Open(driverName, "")
+	if err != nil {
+		return "", fmt.Errorf("can't find original driver: %w", err)
+	}
+
+	defer db.Close()
+
+	newDriverName := fmt.Sprintf(withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), 36))
+
+	// Register wrapped driver with new name for open it later.
+	sql.Register(newDriverName, dbhook.Wrap(db.Driver(), hook))
+
+	return newDriverName, nil
 }
 
-func (bldr *builder) Hooks() dbhook.Hook {
-	options := make([]dbhook.HookOption, 0)
-
-	if bldr.reconnectHook != nil {
-		options = append(options, dbhook.WithHooksError(bldr.reconnectHook))
+func (d *DB) reconnect() error {
+	tmpDB, err := dbsqlx.NewSQLx(d.hooksCfg.DriverName, d.baseCfg.dataSourceName())
+	if err != nil {
+		return fmt.Errorf("new db: %w", err)
 	}
 
-	if bldr.tracerHook != nil {
-		options = append(options,
-			dbhook.WithHooksBefore(bldr.tracerHook.Before()),
-			dbhook.WithHooksAfter(bldr.tracerHook.After()),
-			dbhook.WithHooksError(bldr.tracerHook.After()),
-		)
-	}
+	*d.DB = *tmpDB
 
-	return dbhook.NewHooks(options...)
+	return nil
 }

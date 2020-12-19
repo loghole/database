@@ -6,6 +6,7 @@ linters:
   enable-all: true
   disable:
    - gci
+   - exhaustivestruct
 linters-settings:
   gocritic:
     enabled-tags:
