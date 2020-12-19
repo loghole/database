@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	DatabaseError Code = 2000
-	BadConnection Code = 2001
-	Reconnected   Code = 2002
+	DatabaseError Code = 2020
+	BadConnection Code = 2021
+	Reconnected   Code = 2022
 )
 
 type Code int

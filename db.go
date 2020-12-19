@@ -9,7 +9,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/loghole/dbhook"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/loghole/database/hooks"
 	"github.com/loghole/database/internal/dbsqlx"
@@ -31,62 +30,6 @@ type (
 	TransactionFunc func(ctx context.Context, tx *sqlx.Tx) error
 	RetryFunc       func(err error) bool
 )
-
-func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
-	if parent := opentracing.SpanFromContext(ctx); parent != nil {
-		span := parent.Tracer().StartSpan(transactionSpanName, opentracing.ChildOf(parent.Context()))
-		defer span.Finish()
-
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	}
-
-	tx, err := d.BeginTxx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return err //nolint:wrapcheck // need clear error
-	}
-
-	defer d.rollback(tx)
-
-	// Retry transaction for cockroach db.
-	for {
-		if err = fn(ctx, tx); !d.errIsRetryable(err) {
-			break
-		}
-	}
-
-	if err != nil {
-		return err //nolint:wrapcheck // need clear error
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err //nolint:wrapcheck // need clear error
-	}
-
-	return nil
-}
-
-func (d *DB) rollback(tx *sqlx.Tx) {
-	_ = tx.Rollback()
-}
-
-func (d *DB) errIsRetryable(err error) bool {
-	if d.retryFunc != nil {
-		return d.retryFunc(err)
-	}
-
-	return false
-}
-
-func (d *DB) reconnect() error {
-	tmpDB, err := dbsqlx.NewSQLx(d.hooksCfg.DriverName, d.baseCfg.dataSourceName())
-	if err != nil {
-		return fmt.Errorf("new db: %w", err)
-	}
-
-	*d.DB = *tmpDB
-
-	return nil
-}
 
 func New(cfg *Config, options ...Option) (db *DB, err error) {
 	var (
@@ -143,4 +86,15 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 	sql.Register(newDriverName, dbhook.Wrap(db.Driver(), hook))
 
 	return newDriverName, nil
+}
+
+func (d *DB) reconnect() error {
+	tmpDB, err := dbsqlx.NewSQLx(d.hooksCfg.DriverName, d.baseCfg.dataSourceName())
+	if err != nil {
+		return fmt.Errorf("new db: %w", err)
+	}
+
+	*d.DB = *tmpDB
+
+	return nil
 }
