@@ -46,6 +46,10 @@ func main() {
 	log.Println("reconnect work")
 }
 
+type testInsert struct {
+	Name string `db:"name"`
+}
+
 func initDatabase(db *database.DB) {
 	if _, err := db.ExecContext(context.TODO(), `CREATE DATABASE IF NOT EXISTS test`); err != nil {
 		panic(err)
@@ -59,6 +63,11 @@ func initDatabase(db *database.DB) {
 	}
 
 	if _, err := db.ExecContext(context.TODO(), `INSERT INTO test.test(name) VALUES('test')`); err != nil {
+		panic(err)
+	}
+
+	if _, err := db.NamedExecContext(context.TODO(), `INSERT INTO test.test(name) VALUES(:name)`,
+		&testInsert{Name: "asd"}); err != nil {
 		panic(err)
 	}
 }

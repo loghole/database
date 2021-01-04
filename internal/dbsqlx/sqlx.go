@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -18,7 +19,7 @@ func NewSQLx(driverName, dataSourceName string) (*sqlx.DB, error) {
 		return nil, fmt.Errorf("can't ping db: %w", err)
 	}
 
-	db := sqlx.NewDb(stdDB, driverName)
+	db := sqlx.NewDb(stdDB, strings.Split(driverName, "-")[0])
 
 	return db, nil
 }
