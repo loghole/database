@@ -37,5 +37,6 @@ func isReconnectError(err error) bool {
 	msg := err.Error()
 
 	return strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "bad connection")
+		strings.Contains(msg, "bad connection") ||
+		strings.Contains(msg, "connection timed out")
 }
