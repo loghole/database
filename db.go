@@ -80,6 +80,7 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 
 	defer db.Close()
 
+	// nolint:gomnd // num base ok
 	newDriverName := fmt.Sprintf(withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), 36))
 
 	// Register wrapped driver with new name for open it later.

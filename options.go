@@ -75,8 +75,8 @@ func WithDefaultOptions(tracer opentracing.Tracer) Option {
 }
 
 type builder struct {
-	hookOptions []dbhook.HookOption
 	retryFunc   RetryFunc
+	hookOptions []dbhook.HookOption
 }
 
 func applyOptions(cfg *hooks.Config, options ...Option) *builder {

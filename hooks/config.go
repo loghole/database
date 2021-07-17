@@ -2,6 +2,8 @@ package hooks
 
 // Internal hook config with specified information.
 type Config struct {
+	ReconnectFn func() error
+
 	Addr           string
 	User           string
 	Database       string
@@ -12,5 +14,4 @@ type Config struct {
 	DataSourceName string
 	DriverName     string
 	Instance       string
-	ReconnectFn    func() error
 }

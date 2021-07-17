@@ -31,11 +31,11 @@ func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 	}
 
 	if err != nil {
-		return err //nolint:wrapcheck // need clear error
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return err //nolint:wrapcheck // need clear error
+		return err // nolint:wrapcheck // need clean error
 	}
 
 	return nil

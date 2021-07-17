@@ -1,11 +1,11 @@
 module github.com/loghole/database
 
-go 1.15
+go 1.16
 
 require (
-	github.com/jmoiron/sqlx v1.2.0
-	github.com/lib/pq v1.8.0
-	github.com/lissteron/simplerr v0.7.0
+	github.com/jmoiron/sqlx v1.3.4
+	github.com/lib/pq v1.10.2
+	github.com/lissteron/simplerr v0.9.0
 	github.com/loghole/dbhook v0.2.3
 	github.com/opentracing/opentracing-go v1.2.0
 )
