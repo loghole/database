@@ -27,7 +27,7 @@ func (rh *ReconnectHook) Error(ctx context.Context, input *dbhook.HookInput) (co
 			return ctx, fmt.Errorf("reconnect error: %w", err)
 		}
 
-		return ctx, fmt.Errorf("%w: %s", ErrCanRetry, input.Error.Error()) // nolint:errorlint // need wrap ErrCanRetry
+		return ctx, fmt.Errorf("%w: %s", ErrCanRetry, input.Error.Error())
 	}
 
 	return ctx, input.Error
