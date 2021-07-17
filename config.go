@@ -28,6 +28,10 @@ type Config struct {
 	WriteTimeout string
 }
 
+func (cfg *Config) DSN() (connStr string) {
+	return cfg.dataSourceName()
+}
+
 func (cfg *Config) dataSourceName() (connStr string) {
 	switch cfg.Type {
 	case PostgresDatabase:
