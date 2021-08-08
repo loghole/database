@@ -47,7 +47,7 @@ func WithCockroachRetryFunc() Option {
 	const retryableCode = "40001"
 
 	return func(b *builder, cfg *hooks.Config) {
-		b.retryFunc = func(err error) bool {
+		b.retryFunc = func(_ int, err error) bool {
 			var pqErr pq.Error
 
 			if errors.As(err, &pqErr) {

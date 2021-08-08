@@ -28,7 +28,7 @@ type DB struct {
 
 type (
 	TransactionFunc func(ctx context.Context, tx *sqlx.Tx) error
-	RetryFunc       func(err error) bool
+	RetryFunc       func(retryCount int, err error) bool
 )
 
 func New(cfg *Config, options ...Option) (db *DB, err error) {
