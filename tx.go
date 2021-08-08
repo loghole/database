@@ -23,11 +23,15 @@ func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 
 	defer d.rollback(tx)
 
+	var retryCount int
+
 	// Retry transaction for cockroach db.
 	for {
-		if err = fn(ctx, tx); !d.errIsRetryable(err) {
+		if err = fn(ctx, tx); !d.errIsRetryable(retryCount, err) {
 			break
 		}
+
+		retryCount++
 	}
 
 	if err != nil {
@@ -45,9 +49,9 @@ func (d *DB) rollback(tx *sqlx.Tx) {
 	_ = tx.Rollback()
 }
 
-func (d *DB) errIsRetryable(err error) bool {
+func (d *DB) errIsRetryable(retryCount int, err error) bool {
 	if d.retryFunc != nil {
-		return d.retryFunc(err)
+		return d.retryFunc(retryCount, err)
 	}
 
 	return false
