@@ -8,7 +8,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
+func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) (err error) {
 	if parent := opentracing.SpanFromContext(ctx); parent != nil {
 		span := parent.Tracer().StartSpan(transactionSpanName, opentracing.ChildOf(parent.Context()))
 		defer span.Finish()
@@ -16,6 +16,23 @@ func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 		ctx = opentracing.ContextWithSpan(ctx, span)
 	}
 
+	var retryCount int
+
+	// Retry transaction for cockroach db.
+	for {
+		if err := d.runTxx(ctx, fn); !d.errIsRetryable(retryCount, err) {
+			break
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *DB) runTxx(ctx context.Context, fn TransactionFunc) error {
 	tx, err := d.BeginTxx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err //nolint:wrapcheck // need clear error
@@ -23,18 +40,7 @@ func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 
 	defer d.rollback(tx)
 
-	var retryCount int
-
-	// Retry transaction for cockroach db.
-	for {
-		if err = fn(ctx, tx); !d.errIsRetryable(retryCount, err) {
-			break
-		}
-
-		retryCount++
-	}
-
-	if err != nil {
+	if err := fn(ctx, tx); err != nil {
 		return err
 	}
 
