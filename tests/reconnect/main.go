@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 
 	"github.com/loghole/database"
@@ -24,6 +26,22 @@ func main() {
 
 	initDatabase(db)
 
+	testRetry(db)
+
+	testReconnect(db)
+}
+
+func testRetry(db *database.DB) {
+	err := db.RunTxx(context.Background(), func(ctx context.Context, tx *sqlx.Tx) error {
+		return sql.ErrNoRows
+	})
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		panic("retry bad error")
+	}
+}
+
+func testReconnect(db *database.DB) {
 	var val string
 	if err := db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
 		panic(err)
@@ -31,7 +49,7 @@ func main() {
 
 	time.Sleep(time.Second * 15) // nolint:gomnd // todo
 
-	if err = db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
+	if err := db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
 		if !errors.Is(err, hooks.ErrCanRetry) {
 			panic(err)
 		}
