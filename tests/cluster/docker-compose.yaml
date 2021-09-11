@@ -48,4 +48,3 @@ services:
       - cockroachdb_1
       - cockroachdb_2
       - cockroachdb_3 
-

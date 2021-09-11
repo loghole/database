@@ -5,6 +5,7 @@ import (
 
 	"github.com/loghole/database/hooks"
 	"github.com/loghole/database/internal/addrlist"
+	"github.com/loghole/database/internal/pool"
 )
 
 type DBType string
@@ -42,6 +43,23 @@ func (cfg *Config) GetAddrList() *addrlist.AddrList {
 	}
 
 	return cfg.AddrList
+}
+
+func (cfg *Config) nodeConfigs() []pool.DBNodeConfig {
+	configs := make([]pool.DBNodeConfig, 0)
+
+	for _, addr := range cfg.AddrList.All() {
+		config := pool.DBNodeConfig{
+			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
+			DriverName: cfg.driverName(),
+			Priority:   addr.Priority,
+			Weight:     addr.Weight,
+		}
+
+		configs = append(configs, config)
+	}
+
+	return configs
 }
 
 func (cfg *Config) DSN() (connStr string) {

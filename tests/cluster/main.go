@@ -13,10 +13,9 @@ func main() {
 	addrList := new(addrlist.AddrList)
 
 	addrList.Add(1, 1, "127.0.0.1:26257", "127.0.0.1:26258")
-	addrList.Add(2, 1, "127.0.0.1:26259", "127.0.0.1:26260")
-	addrList.Add(3, 1, "127.0.0.1:26261")
+	addrList.Add(2, 1, "127.0.0.1:26259")
 
-	db, err := database.NewDB2(&database.Config{
+	db, err := database.NewDB3(&database.Config{
 		AddrList: addrList,
 		User:     "root",
 		Type:     database.CockroachDatabase,
