@@ -1,0 +1,35 @@
+version: '3'
+services:
+  cockroachdb_1:
+    image: cockroachdb/cockroach:v21.1.7
+    volumes:
+      - ~/.data/github.com/loghole/database/cockroachdb_1:/cockroachdb
+    command: start --listen-addr=cockroachdb_1:26257 --http-addr=0.0.0.0:8080 --join=cockroachdb_1:26257,cockroachdb_2:26257,cockroachdb_3:26257 --insecure --store=/cockroachdb --cache=1G --max-sql-memory=1G 
+    ports:
+      - "127.0.0.1:18086:8080"
+      - "127.0.0.1:26257:26257"
+
+  cockroachdb_2:
+    image: cockroachdb/cockroach:v21.1.7
+    volumes:
+      - ~/.data/github.com/loghole/database/cockroachdb_2:/cockroachdb
+    command: start --listen-addr=cockroachdb_2:26257 --http-addr=0.0.0.0:8080 --join=cockroachdb_1:26257,cockroachdb_2:26257,cockroachdb_3:26257 --insecure --store=/cockroachdb --cache=1G --max-sql-memory=1G 
+    ports:
+      - "127.0.0.1:26258:26257"
+
+  cockroachdb_3:
+    image: cockroachdb/cockroach:v21.1.7
+    volumes:
+      - ~/.data/github.com/loghole/database/cockroachdb_3:/cockroachdb
+    command: start --listen-addr=cockroachdb_3:26257 --http-addr=0.0.0.0:8080 --join=cockroachdb_1:26257,cockroachdb_2:26257,cockroachdb_3:26257 --insecure --store=/cockroachdb --cache=1G --max-sql-memory=1G 
+    ports:
+      - "127.0.0.1:26259:26257"
+
+  cockroachdb_init_cluster:
+    image: cockroachdb/cockroach:v21.1.7
+    command: init --insecure --host=cockroachdb_1:26257
+    links:
+      - cockroachdb_1
+      - cockroachdb_2
+      - cockroachdb_3 
+

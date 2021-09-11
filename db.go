@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -20,7 +21,9 @@ const (
 )
 
 type DB struct {
-	*sqlx.DB
+	db *sqlx.DB
+	mu sync.RWMutex
+
 	retryFunc RetryFunc
 	hooksCfg  *hooks.Config
 	baseCfg   *Config
@@ -32,6 +35,8 @@ type (
 )
 
 func New(cfg *Config, options ...Option) (db *DB, err error) {
+	// TODO validate config
+
 	var (
 		hooksCfg = cfg.hookConfig()
 		builder  = applyOptions(hooksCfg, options...)
@@ -48,12 +53,12 @@ func New(cfg *Config, options ...Option) (db *DB, err error) {
 		baseCfg:   cfg,
 	}
 
-	db.DB, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
+	db.db, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
 	if err != nil {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
 
-	hooksCfg.Instance = getDBInstans(db.DB)
+	hooksCfg.Instance = getDBInstans(db.db)
 	hooksCfg.ReconnectFn = db.reconnect
 
 	return db, nil
@@ -89,13 +94,17 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 	return newDriverName, nil
 }
 
-func (d *DB) reconnect() error {
-	tmpDB, err := dbsqlx.NewSQLx(d.hooksCfg.DriverName, d.baseCfg.dataSourceName())
+func (db *DB) reconnect() error {
+	tmpDB, err := dbsqlx.NewSQLx(db.hooksCfg.DriverName, db.baseCfg.dataSourceName())
 	if err != nil {
 		return fmt.Errorf("new db: %w", err)
 	}
 
-	*d.DB = *tmpDB
+	db.mu.Lock()
+
+	*db.db = *tmpDB
+
+	db.mu.Unlock()
 
 	return nil
 }

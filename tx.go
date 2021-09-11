@@ -36,7 +36,7 @@ func (d *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 }
 
 func (d *DB) runTxx(ctx context.Context, fn TransactionFunc) error {
-	tx, err := d.BeginTxx(ctx, &sql.TxOptions{})
+	tx, err := d.db.BeginTxx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err //nolint:wrapcheck // need clear error
 	}

@@ -43,13 +43,13 @@ func testRetry(db *database.DB) {
 
 func testReconnect(db *database.DB) {
 	var val string
-	if err := db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
+	if err := db.GetContext(context.Background(), &val, `SELECT name FROM test.test LIMIT 1`); err != nil {
 		panic(err)
 	}
 
 	time.Sleep(time.Second * 15) // nolint:gomnd // todo
 
-	if err := db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
+	if err := db.GetContext(context.Background(), &val, `SELECT name FROM test.test LIMIT 1`); err != nil {
 		if !errors.Is(err, hooks.ErrCanRetry) {
 			panic(err)
 		}
@@ -57,7 +57,7 @@ func testReconnect(db *database.DB) {
 		panic("no error")
 	}
 
-	if err := db.Get(&val, `SELECT name FROM test.test LIMIT 1`); err != nil {
+	if err := db.GetContext(context.Background(), &val, `SELECT name FROM test.test LIMIT 1`); err != nil {
 		panic(err)
 	}
 

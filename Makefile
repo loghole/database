@@ -12,3 +12,9 @@ test-intergation:
 
 test-intergation-stop:
 	cd tests/reconnect && docker-compose down
+
+coclient:
+	docker exec -it cluster_cockroachdb_1_1 ./cockroach sql --insecure
+
+ls:
+	docker exec -it cluster_cockroachdb_2_1 ./cockroach node status --all --insecure --host cockroachdb_2

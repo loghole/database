@@ -6,9 +6,16 @@ import (
 	"github.com/loghole/database/hooks"
 )
 
+type DBAddr struct {
+	Addr     string
+	Priority uint
+	Weight   uint
+}
+
 type DBType string
 
 const (
+	CockroachDatabase  DBType = "cockroach"
 	PostgresDatabase   DBType = "postgres"
 	ClickhouseDatabase DBType = "clickhouse"
 	SQLiteDatabase     DBType = "sqlite3"
@@ -20,12 +27,18 @@ func (d DBType) String() string {
 
 type Config struct {
 	Addr         string
+	AddrList     []DBAddr // optional for cockroach.
 	User         string
 	Database     string
 	CertPath     string
 	Type         DBType
 	ReadTimeout  string
 	WriteTimeout string
+}
+
+func (cfg *Config) AddAddr(priority, weight uint, addrs ...string) error {
+
+	return nil
 }
 
 func (cfg *Config) DSN() (connStr string) {
@@ -53,7 +66,7 @@ func (cfg *Config) postgresConnString() string {
 
 		return fmt.Sprintf("postgres://%s@%s/%s?%s", cfg.User, cfg.Addr, cfg.Database, ssl)
 	default:
-		return fmt.Sprintf("postgresql://%s@%s/%s?sslmode=disable", cfg.User, cfg.Addr, cfg.Database)
+		return fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", cfg.User, cfg.Addr, cfg.Database)
 	}
 }
 
@@ -83,4 +96,8 @@ func (cfg *Config) hookConfig() *hooks.Config {
 		DriverName:     cfg.driverName(),
 		Instance:       "-",
 	}
+}
+
+func (cfg *Config) configAddr() string {
+	return "" // TODO
 }
