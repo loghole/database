@@ -100,6 +100,9 @@ func (p *ClusterPool) NextPending() (*NodeDB, error) {
 	return p.next(isPending)
 }
 
+// TODO: сделать умный пулл, все сюда закинуть
+// управлять переподключениями и т.п. в пуле.
+
 func (p *ClusterPool) next(status int32) (*NodeDB, error) {
 	clients := p.clients
 
