@@ -4,13 +4,8 @@ import (
 	"fmt"
 
 	"github.com/loghole/database/hooks"
+	"github.com/loghole/database/internal/addrlist"
 )
-
-type DBAddr struct {
-	Addr     string
-	Priority uint
-	Weight   uint
-}
 
 type DBType string
 
@@ -27,7 +22,7 @@ func (d DBType) String() string {
 
 type Config struct {
 	Addr         string
-	AddrList     []DBAddr // optional for cockroach.
+	AddrList     *addrlist.AddrList // optional for cockroach.
 	User         string
 	Database     string
 	CertPath     string
@@ -39,6 +34,14 @@ type Config struct {
 func (cfg *Config) AddAddr(priority, weight uint, addrs ...string) error {
 
 	return nil
+}
+
+func (cfg *Config) GetAddrList() *addrlist.AddrList {
+	for _, addr := range cfg.AddrList.All() {
+		addr.Addr = postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath)
+	}
+
+	return cfg.AddrList
 }
 
 func (cfg *Config) DSN() (connStr string) {
@@ -80,7 +83,16 @@ func (cfg *Config) sqliteConnString() string {
 }
 
 func (cfg *Config) driverName() string {
-	return string(cfg.Type)
+	switch cfg.Type {
+	case CockroachDatabase, PostgresDatabase:
+		return PostgresDatabase.String()
+	case ClickhouseDatabase:
+		return ClickhouseDatabase.String()
+	case SQLiteDatabase:
+		return SQLiteDatabase.String()
+	default:
+		return ""
+	}
 }
 
 func (cfg *Config) hookConfig() *hooks.Config {
@@ -98,6 +110,14 @@ func (cfg *Config) hookConfig() *hooks.Config {
 	}
 }
 
-func (cfg *Config) configAddr() string {
-	return "" // TODO
+func postgresConnString(user, addr, database, certPath string) string {
+	switch {
+	case certPath != "":
+		ssl := fmt.Sprintf("&sslmode=%s&sslcert=%s/client.%s.crt&sslkey=%s/client.%s.key&sslrootcert=%s/ca.crt",
+			"verify-full", certPath, user, certPath, user, certPath)
+
+		return fmt.Sprintf("postgres://%s@%s/%s?%s", user, addr, database, ssl)
+	default:
+		return fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", user, addr, database)
+	}
 }

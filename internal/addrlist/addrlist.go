@@ -17,10 +17,10 @@ type DBAddr struct {
 
 type AddrList struct {
 	mu   sync.Mutex
-	list []DBAddr
+	list []*DBAddr
 }
 
-func (a *AddrList) Add(priority, weight uint, driverName string, addrs ...string) error {
+func (a *AddrList) Add(priority, weight uint, addrs ...string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -31,7 +31,7 @@ func (a *AddrList) Add(priority, weight uint, driverName string, addrs ...string
 			}
 		}
 
-		a.list = append(a.list, DBAddr{
+		a.list = append(a.list, &DBAddr{
 			Addr:     addr,
 			Priority: priority,
 			Weight:   weight,
@@ -41,6 +41,6 @@ func (a *AddrList) Add(priority, weight uint, driverName string, addrs ...string
 	return nil
 }
 
-func (a *AddrList) All() []DBAddr {
+func (a *AddrList) All() []*DBAddr {
 	return a.list
 }

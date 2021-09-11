@@ -17,4 +17,7 @@ coclient:
 	docker exec -it cluster_cockroachdb_1_1 ./cockroach sql --insecure
 
 ls:
-	docker exec -it cluster_cockroachdb_2_1 ./cockroach node status --all --insecure --host cockroachdb_2
+	docker exec -it cluster_cockroachdb_3_1 ./cockroach node status --all --insecure --host cockroachdb_2
+
+up:
+	docker-compose -f tests/cluster/docker-compose.yaml up -d

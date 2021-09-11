@@ -37,10 +37,10 @@ type NodeDB struct {
 	db *sqlx.DB
 }
 
-func NewNodeDB(addr *DBAddr) (*NodeDB, error) {
+func NewNodeDB(driverName string, addr *DBAddr) (*NodeDB, error) {
 	client := &NodeDB{
 		addr:       addr.Addr,
-		driverName: addr.DriverName,
+		driverName: driverName,
 		priority:   uint32(addr.Priority),
 		weight:     int32(addr.Weight),
 		status:     isPending,

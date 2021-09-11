@@ -11,12 +11,11 @@ import (
 
 	"github.com/loghole/database/hooks"
 	"github.com/loghole/database/internal/addrlist"
-	"github.com/loghole/database/internal/dbsqlx"
 	"github.com/loghole/database/internal/signal"
 )
 
 type DB2 struct {
-	pool        addrlist.ClusterPool
+	pool        addrlist.Pool
 	mu          sync.RWMutex
 	pendingDBMU sync.Mutex
 
@@ -43,16 +42,19 @@ func NewDB2(cfg *Config, options ...Option) (db *DB2, err error) {
 	}
 
 	db = &DB2{
-		retryFunc: builder.retryFunc,
-		hooksCfg:  hooksCfg,
-		baseCfg:   cfg,
-		deadCh:    make(signal.Signal, 1),
+		retryFunc:    builder.retryFunc,
+		hooksCfg:     hooksCfg,
+		baseCfg:      cfg,
+		deadCh:       make(signal.Signal, 1),
+		pingInterval: time.Second, // TODO fix
 	}
 
-	db.db, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
+	db.pool, err = addrlist.NewPool(2, hooksCfg.DriverName, cfg.GetAddrList())
 	if err != nil {
-		return nil, fmt.Errorf("new db: %w", err)
+		return nil, fmt.Errorf("new pool: %w", err)
 	}
+
+	go db.pingDeadNodes()
 
 	return db, nil
 }
@@ -114,6 +116,8 @@ func (db *DB2) next(ctx context.Context) (*addrlist.NodeDB, error) {
 
 func (db *DB2) nextPending(ctx context.Context) (*addrlist.NodeDB, error) {
 	for {
+		log.Println("next pending")
+
 		pendingDB, err := db.pool.NextPending()
 		if err != nil {
 			return nil, err
@@ -178,5 +182,7 @@ func isReconnectError(err error) bool {
 
 	return strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "bad connection") ||
-		strings.Contains(msg, "connection timed out")
+		strings.Contains(msg, "connection timed out") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "try another node")
 }
