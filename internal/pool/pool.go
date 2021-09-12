@@ -21,8 +21,9 @@ type Pool interface {
 }
 
 const (
-	_reqMultiplier int32 = 10_000
-	_pingInterval        = time.Second
+	_reqMultiplier     int32 = 10_000
+	_pingInterval            = time.Second
+	_drainWaitInterval       = time.Second
 )
 
 var (
@@ -30,6 +31,7 @@ var (
 	ErrNoAvailableClients = errors.New("no available clients")
 )
 
+// TODO нужна валидация конфига
 func NewClusterPool(activeCount int, configs []DBNodeConfig) (Pool, error) {
 	var (
 		index      = make(map[uint][]DBNodeConfig)
@@ -61,6 +63,8 @@ func NewClusterPool(activeCount int, configs []DBNodeConfig) (Pool, error) {
 	pool := &ClusterPool{
 		activeTarget: int32(activeCount),
 		clients:      make([][]*DBNode, len(priorities)),
+		deadSignal:   signal.New(),
+		liveSignal:   signal.New(),
 	}
 
 	for idx, priority := range priorities {
@@ -96,9 +100,23 @@ type ClusterPool struct {
 	activeTarget  int32
 	activeCurrent int32
 
+	drainMu    sync.RWMutex
 	pendingMu  sync.Mutex
 	deadSignal signal.Signal
 	liveSignal signal.Signal
+}
+
+func copyNodeWithoutDB(node *DBNode) *DBNode {
+	return &DBNode{ // TODO add linter?
+		addr:        node.addr,
+		driverName:  node.driverName,
+		priority:    node.priority,
+		weight:      node.weight,
+		status:      isPending,
+		activeReq:   0,
+		lastUseTime: 0,
+		db:          nil,
+	}
 }
 
 func (p *ClusterPool) DoQuery(ctx context.Context, cb func(ctx context.Context, db dbsqlx.Database) error) error {
@@ -145,7 +163,7 @@ func (p *ClusterPool) next(ctx context.Context) (*DBNode, error) {
 
 	// Если закончились живые ноды - пробуем подключиться к ожидающим.
 	for {
-		log.Println("get next from pending nodes")
+		log.Println("get next from pending nodes") // TODO remove
 
 		pendingNode, err := p.nextByStatus(isPending)
 		if err != nil {
@@ -185,7 +203,10 @@ func (p *ClusterPool) setPending(node *DBNode) {
 }
 
 func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
-	clients := p.clients
+	p.drainMu.RLock()
+	defer p.drainMu.RUnlock()
+
+	clients := p.clients // TODO зачем?
 
 	for _, list := range clients {
 		var (
@@ -216,6 +237,8 @@ func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
 			continue
 		}
 
+		// TODO добавить активности + перепроверить статус
+
 		return minClient, nil
 	}
 
@@ -237,7 +260,7 @@ func (p *ClusterPool) connectWorker() {
 			continue
 		}
 
-		if err := node.Connect(); err == nil {
+		if err = node.Connect(); err == nil {
 			p.setLive(node)
 
 			continue
@@ -256,14 +279,19 @@ func (p *ClusterPool) connectWorker() {
 		case <-p.deadSignal:
 		}
 
-		timer.Stop()
+		if !timer.Stop() {
+			<-timer.C
+		}
 	}
 }
 
 // TODO: выглядит сложновато...
 //  также будут работать n нод из разных приоритетов, но если все слить на одну ноду,
 //  она может отвалиться под нагрузкой что также не круто.
-func (p *ClusterPool) closeWorker() {
+//
+// Кажется есть проблемы с концепцией. Возможно стоит в пуле держать только активные коннекты, а не активные убирать из пула.
+// Иначе очень сложно решить проблемы гонки данных.
+func (p *ClusterPool) closeWorker() { // TODO pendingWorker?
 LIVE:
 	for range p.liveSignal {
 		for i := len(p.clients); i >= 0; i-- {
@@ -272,25 +300,43 @@ LIVE:
 					continue LIVE
 				}
 
-				node := p.clients[i][j]
+				node := p.getNode(i, j)
 
 				if atomic.LoadInt32(&node.status) != isLive {
 					continue
 				}
 
-				p.setPending(node)
+				p.toDrain(i, j)
 
-				// Встаем в ожидании завершения активных запросов.
-				for atomic.LoadInt32(&node.activeReq) != 0 {
-					time.Sleep(time.Second)
-				}
+				// Встаем ждать в отдельном потоке
+				go func() {
+					// Встаем в ожидании завершения активных запросов.
+					for atomic.LoadInt32(&node.activeReq) != 0 {
+						time.Sleep(_drainWaitInterval)
+					}
 
-				if err := node.Close(); err != nil {
-					p.errorf(context.Background(), "close node conn %s: %v", node.Addr(), err)
-				}
+					if err := node.Close(); err != nil {
+						p.errorf(context.Background(), "close node conn %s: %v", node.Addr(), err)
+					}
+				}()
 			}
 		}
 	}
+}
+
+func (p *ClusterPool) getNode(i, j int) *DBNode {
+	p.drainMu.RLock()
+	defer p.drainMu.RUnlock()
+
+	return p.clients[i][j]
+}
+
+func (p *ClusterPool) toDrain(i, j int) {
+	p.drainMu.Lock()
+	defer p.drainMu.Unlock()
+
+	p.clients[i][j] = copyNodeWithoutDB(p.clients[i][j])
+	p.setPending(p.clients[i][j])
 }
 
 // TODO: add cool logger.
@@ -301,6 +347,7 @@ func (p *ClusterPool) errorf(ctx context.Context, format string, args ...interfa
 func isReconnectError(err error) bool {
 	msg := err.Error()
 
+	// TODO отсортировать по частоте получения ошибки
 	return strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "bad connection") ||
 		strings.Contains(msg, "connection timed out") || // TODO: а таймаут с контекстом тут не заретраится случайно?

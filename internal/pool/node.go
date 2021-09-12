@@ -39,12 +39,13 @@ type DBNode struct {
 	db *sqlx.DB
 }
 
+// TODO нужна валидация конфига
 func NewDBNode(config DBNodeConfig) (*DBNode, error) {
 	client := &DBNode{
 		addr:       config.Addr,
 		driverName: config.DriverName,
 		priority:   uint32(config.Priority),
-		weight:     int32(config.Weight),
+		weight:     int32(config.Weight), // TODO weight == 0 return error or get default?
 		status:     isPending,
 	}
 
