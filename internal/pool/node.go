@@ -199,14 +199,14 @@ func (db *DBNode) PrepareNamedContext(ctx context.Context, query string) (*sqlx.
 	return db.db.PrepareNamedContext(ctx, query)
 }
 
-// ActiveRequests returns all active request of node client.
-func (db *DBNode) loadActiveRequests() int32 {
-	return atomic.LoadInt32(&db.activeReq)
-}
-
 // LastUseTime returns time of last started request.
 func (db *DBNode) loadLastUseTime() int64 {
 	return atomic.LoadInt64(&db.lastUseTime)
+}
+
+// ActiveRequests returns all active request of node client.
+func (db *DBNode) loadActiveRequests() int32 {
+	return atomic.LoadInt32(&db.activeReq)
 }
 
 func (db *DBNode) addActiveReq() int32 {

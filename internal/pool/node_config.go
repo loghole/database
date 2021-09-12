@@ -3,7 +3,6 @@ package pool
 import (
 	"context"
 	"fmt"
-	"log"
 )
 
 type ctxkey string
@@ -62,8 +61,6 @@ type DBNodeConfig struct {
 }
 
 func (cfg *DBNodeConfig) DSN() (connStr string) {
-	log.Println("u1", cfg.User, cfg.Type, cfg.Addr)
-
 	switch cfg.Type {
 	case PostgresDatabase, CockroachDatabase:
 		connStr = cfg.postgresConnString()

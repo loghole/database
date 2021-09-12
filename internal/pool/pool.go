@@ -116,6 +116,7 @@ func NewClusterPool(
 
 	log.Println(pool.clients)
 
+	// TODO add ping live nodes worker
 	go pool.connectWorker()
 	go pool.pendingWorker()
 	go pool.liveWorker()
@@ -138,10 +139,14 @@ func (p *ClusterPool) DoQuery(ctx context.Context, cb func(ctx context.Context, 
 }
 
 func (p *ClusterPool) doQuery(ctx context.Context, cb func(ctx context.Context, db dbsqlx.Database) error) error {
+	//	start := time.Now()
+
 	node, err := p.next(ctx)
 	if err != nil {
 		return err
 	}
+
+	//log.Println("next time since: ", time.Since(start))
 
 	defer node.subActiveReq()
 
@@ -253,7 +258,7 @@ func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
 		checkedCounter++
 
 		var (
-			weight  = client.loadActiveRequests() * _reqMultiplier / client.weight
+			weight  = client.loadActiveRequests() / client.weight
 			useTime = client.loadLastUseTime()
 		)
 

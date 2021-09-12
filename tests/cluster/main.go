@@ -35,5 +35,13 @@ func main() {
 		}
 
 		log.Println("SELECT NODE ID: ", dest)
+
+		go func() {
+			var in interface{}
+			err := db.GetContext(context.TODO(), &in, "SELECT pg_sleep(5)")
+			if err != nil {
+				log.Println(err)
+			}
+		}()
 	}
 }
