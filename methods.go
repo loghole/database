@@ -5,22 +5,65 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/loghole/database/internal/dbsqlx"
 )
+
+// SelectContext using this DB.
+// Any placeholder parameters are replaced with supplied args.
+func (db *DB) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	return db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		return db.SelectContext(ctx, dest, query, args...)
+	})
+}
+
+// GetContext using this DB.
+// Any placeholder parameters are replaced with supplied args.
+// An error is returned if the result set is empty.
+func (db *DB) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
+	return db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		return db.GetContext(ctx, dest, query, args...)
+	})
+}
 
 // BindNamed binds a query using the DB driver's bindvar type.
 func (db *DB) BindNamed(query string, arg interface{}) (string, []interface{}, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var (
+		bound   string
+		arglist []interface{}
+	)
 
-	return db.db.BindNamed(query, arg)
+	if err := db.pool.DoQuery(context.TODO(), func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if bound, arglist, err = db.BindNamed(query, arg); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return "", nil, err
+	}
+
+	return bound, arglist, nil
 }
 
 // Beginx begins a transaction and returns an *sqlx.Tx instead of an *sql.Tx.
 func (db *DB) Beginx() (*sqlx.Tx, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var tx *sqlx.Tx
 
-	return db.db.Beginx()
+	if err := db.pool.DoQuery(context.TODO(), func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if tx, err = db.Beginx(); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return tx, nil
 }
 
 // BeginTxx begins a transaction and returns an *sqlx.Tx instead of an
@@ -31,79 +74,137 @@ func (db *DB) Beginx() (*sqlx.Tx, error) {
 // transaction. Tx.Commit will return an error if the context provided to
 // BeginxContext is canceled.
 func (db *DB) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var tx *sqlx.Tx
 
-	return db.db.BeginTxx(ctx, opts)
-}
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
 
-// GetContext using this DB.
-// Any placeholder parameters are replaced with supplied args.
-// An error is returned if the result set is empty.
-func (db *DB) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+		if tx, err = db.BeginTxx(ctx, opts); err != nil {
+			return err
+		}
 
-	return db.db.GetContext(ctx, dest, query, args...)
-}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 
-// SelectContext using this DB.
-// Any placeholder parameters are replaced with supplied args.
-func (db *DB) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	return db.db.SelectContext(ctx, dest, query, args...)
+	return tx, nil
 }
 
 // ExecContext executes a query without returning any rows.
 // The args are for any placeholder parameters in the query.
 func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var result sql.Result
 
-	return db.db.ExecContext(ctx, query, args...)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if result, err = db.ExecContext(ctx, query, args); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // NamedExecContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DB) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var result sql.Result
 
-	return db.db.NamedExecContext(ctx, query, arg)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if result, err = db.NamedExecContext(ctx, query, arg); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // QueryxContext queries the database and returns an *sqlx.Rows.
 // Any placeholder parameters are replaced with supplied args.
 func (db *DB) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var rows *sqlx.Rows
 
-	return db.db.QueryxContext(ctx, query, args...)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if rows, err = db.QueryxContext(ctx, query, args); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 // NamedQueryContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DB) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var rows *sqlx.Rows
 
-	return db.db.NamedQueryContext(ctx, query, arg)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if rows, err = db.NamedQueryContext(ctx, query, arg); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 // PreparexContext returns an sqlx.Stmt instead of a sqlx.Stmt.
 func (db *DB) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var stmt *sqlx.Stmt
 
-	return db.db.PreparexContext(ctx, query)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if stmt, err = db.PreparexContext(ctx, query); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
 }
 
 // PrepareNamedContext returns an sqlx.NamedStmt.
 func (db *DB) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	var stmt *sqlx.NamedStmt
 
-	return db.db.PrepareNamedContext(ctx, query)
+	if err := db.pool.DoQuery(ctx, func(ctx context.Context, db dbsqlx.Database) error {
+		var err error
+
+		if stmt, err = db.PrepareNamedContext(ctx, query); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return stmt, nil
 }

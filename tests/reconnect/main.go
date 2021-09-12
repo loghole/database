@@ -19,7 +19,7 @@ func main() {
 		Addr: "haproxy:12757",
 		User: "root",
 		Type: database.PostgresDatabase,
-	}, database.WithReconnectHook())
+	})
 	if err != nil {
 		panic(err)
 	}

@@ -6,21 +6,23 @@ import (
 	"time"
 
 	"github.com/loghole/database"
-	"github.com/loghole/database/internal/addrlist"
 )
 
 func main() {
-	addrList := new(addrlist.AddrList)
+	config := &database.Config{
+		Addr: `
+			cockroach://127.0.0.1:26257?priority=1&weight=1,
+			cockroach://127.0.0.1:26258?priority=1&weight=10,
+			cockroach://127.0.0.1:26259?priority=2&weight=1,
+			cockroach://127.0.0.1:26260?priority=2&weight=10,
+			cockroach://127.0.0.1:26261?priority=3&weight=1,
+		`,
+		User:        "root",
+		Type:        database.CockroachDatabase,
+		ActiveCount: 2,
+	}
 
-	addrList.Add(1, 1, "127.0.0.1:26257", "127.0.0.1:26258")
-	addrList.Add(2, 1, "127.0.0.1:26259", "127.0.0.1:26260")
-	addrList.Add(3, 1, "127.0.0.1:26261")
-
-	db, err := database.NewDB3(&database.Config{
-		AddrList: addrList,
-		User:     "root",
-		Type:     database.CockroachDatabase,
-	})
+	db, err := database.New(config)
 	if err != nil {
 		panic(err)
 	}

@@ -1,167 +1,134 @@
 package database
 
 import (
+	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
-	"github.com/loghole/database/hooks"
-	"github.com/loghole/database/internal/addrlist"
 	"github.com/loghole/database/internal/pool"
-	"github.com/loghole/database/internal/pool2"
 )
 
-type DBType string
+var (
+	ErrInvalidConfig     = errors.New("invalid config")
+	ErrAddrAlreadyExists = errors.New("addr alreay exists")
+)
+
+type DBType = pool.DBType
 
 const (
-	CockroachDatabase  DBType = "cockroach"
-	PostgresDatabase   DBType = "postgres"
-	ClickhouseDatabase DBType = "clickhouse"
-	SQLiteDatabase     DBType = "sqlite3"
+	CockroachDatabase  DBType = pool.CockroachDatabase
+	PostgresDatabase   DBType = pool.PostgresDatabase
+	ClickhouseDatabase DBType = pool.ClickhouseDatabase
+	SQLiteDatabase     DBType = pool.SQLiteDatabase
 )
 
-func (d DBType) String() string {
-	return string(d)
-}
-
 type Config struct {
-	Addr         string
-	AddrList     *addrlist.AddrList // optional for cockroach.
-	User         string
-	Database     string
-	CertPath     string
-	Type         DBType
-	ReadTimeout  string
-	WriteTimeout string
+	// The Addr can contain priority and weight semantics.
+	// e.g. 127.0.0.1:8080?priority=1&weight=10&read_timeout=5s&write_timeout=5s
+	// Comma separated arrays are also supported, e.g. url1, url2.
+	Addr     string
+	User     string
+	Database string
+	CertPath string
+	Type     DBType
+
+	ActiveCount      int
+	CanUseOtherLevel bool
 }
 
-func (cfg *Config) AddAddr(priority, weight uint, addrs ...string) error {
-
-	return nil
-}
-
-func (cfg *Config) GetAddrList() *addrlist.AddrList {
-	for _, addr := range cfg.AddrList.All() {
-		addr.Addr = postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath)
+func (cfg *Config) paseAddr(addr string) (*pool.DBNodeConfig, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, fmt.Errorf("parse db addr: '%s', %w", addr, err)
 	}
 
-	return cfg.AddrList
-}
+	config := &pool.DBNodeConfig{
+		Addr:         u.Host,
+		User:         cfg.User,
+		Database:     cfg.Database,
+		CertPath:     cfg.CertPath,
+		Type:         cfg.Type,
+		ReadTimeout:  u.Query().Get("read_timeout"),
+		WriteTimeout: u.Query().Get("write_timeout"),
+	}
 
-func (cfg *Config) nodeConfigs() []pool.DBNodeConfig {
-	configs := make([]pool.DBNodeConfig, 0)
+	const (
+		base    = 10
+		bitSize = 32
+	)
 
-	for _, addr := range cfg.AddrList.All() {
-		if addr.Weight == 0 {
-			addr.Weight = 1
+	if val := u.Query().Get("weight"); val != "" {
+		weight, err := strconv.ParseUint(u.Query().Get("weight"), base, bitSize)
+		if err != nil {
+			return nil, fmt.Errorf("parse weight value '%s': %w", val, err)
 		}
 
-		config := pool.DBNodeConfig{
-			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
-			DriverName: cfg.driverName(),
-			Priority:   addr.Priority,
-			Weight:     addr.Weight,
+		config.Weight = uint(weight)
+	}
+
+	if val := u.Query().Get("priority"); val != "" {
+		priority, err := strconv.ParseUint(u.Query().Get("priority"), base, bitSize)
+		if err != nil {
+			return nil, fmt.Errorf("parse priority value '%s': %w", val, err)
+		}
+
+		config.Priority = uint(priority)
+	}
+
+	return config, nil
+}
+
+func (cfg *Config) buildNodeConfigs() ([]*pool.DBNodeConfig, error) {
+	switch {
+	case cfg.Type.DriverName() == "":
+		return nil, fmt.Errorf("required driver value %w", ErrInvalidConfig)
+	case cfg.User == "":
+		return nil, fmt.Errorf("required user: %w", ErrInvalidConfig)
+	}
+
+	var (
+		addrs   = strings.Split(cfg.Addr, ",")
+		configs = make([]*pool.DBNodeConfig, 0, len(addrs))
+	)
+
+	if len(addrs) > 1 && cfg.Type != pool.CockroachDatabase {
+		return nil, fmt.Errorf("%w: multiple databases not supported for %s", ErrInvalidConfig, cfg.Type)
+	}
+
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+
+		config, err := cfg.paseAddr(addr)
+		if err != nil {
+			return nil, fmt.Errorf("parse addr: %w", err)
+		}
+
+		for _, target := range configs {
+			if strings.EqualFold(config.Addr, target.Addr) {
+				return nil, fmt.Errorf("%s: %w", config.Addr, ErrAddrAlreadyExists)
+			}
 		}
 
 		configs = append(configs, config)
 	}
 
-	return configs
+	return configs, nil
 }
 
-func (cfg *Config) nodeConfigs2() []pool2.DBNodeConfig {
-	configs := make([]pool2.DBNodeConfig, 0)
-
-	for _, addr := range cfg.AddrList.All() {
-		if addr.Weight == 0 {
-			addr.Weight = 1
-		}
-
-		config := pool2.DBNodeConfig{
-			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
-			DriverName: cfg.driverName(),
-			Priority:   addr.Priority,
-			Weight:     addr.Weight,
-		}
-
-		configs = append(configs, config)
+func (cfg *Config) DSN() (string, error) {
+	configs, err := cfg.buildNodeConfigs()
+	if err != nil {
+		return "", fmt.Errorf("build node configs: %w", err)
 	}
 
-	return configs
-}
-
-func (cfg *Config) DSN() (connStr string) {
-	return cfg.dataSourceName()
-}
-
-func (cfg *Config) dataSourceName() (connStr string) {
-	switch cfg.Type {
-	case PostgresDatabase:
-		connStr = cfg.postgresConnString()
-	case ClickhouseDatabase:
-		connStr = cfg.clickhouseConnString()
-	case SQLiteDatabase:
-		connStr = cfg.sqliteConnString()
+	if len(configs) == 0 {
+		return "", fmt.Errorf("empty addr: %w", ErrInvalidConfig)
 	}
 
-	return connStr
-}
-
-func (cfg *Config) postgresConnString() string {
-	switch {
-	case cfg.CertPath != "":
-		ssl := fmt.Sprintf("&sslmode=%s&sslcert=%s/client.%s.crt&sslkey=%s/client.%s.key&sslrootcert=%s/ca.crt",
-			"verify-full", cfg.CertPath, cfg.User, cfg.CertPath, cfg.User, cfg.CertPath)
-
-		return fmt.Sprintf("postgres://%s@%s/%s?%s", cfg.User, cfg.Addr, cfg.Database, ssl)
-	default:
-		return fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", cfg.User, cfg.Addr, cfg.Database)
-	}
-}
-
-func (cfg *Config) clickhouseConnString() string {
-	return fmt.Sprintf("tcp://%s?username=%s&database=%s&read_timeout=%s&write_timeout=%s",
-		cfg.Addr, cfg.User, cfg.Database, cfg.ReadTimeout, cfg.WriteTimeout)
-}
-
-func (cfg *Config) sqliteConnString() string {
-	return cfg.Database
-}
-
-func (cfg *Config) driverName() string {
-	switch cfg.Type {
-	case CockroachDatabase, PostgresDatabase:
-		return PostgresDatabase.String()
-	case ClickhouseDatabase:
-		return ClickhouseDatabase.String()
-	case SQLiteDatabase:
-		return SQLiteDatabase.String()
-	default:
-		return ""
-	}
-}
-
-func (cfg *Config) hookConfig() *hooks.Config {
-	return &hooks.Config{
-		Addr:           cfg.Addr,
-		User:           cfg.User,
-		Database:       cfg.Database,
-		CertPath:       cfg.CertPath,
-		Type:           cfg.Type.String(),
-		ReadTimeout:    cfg.ReadTimeout,
-		WriteTimeout:   cfg.WriteTimeout,
-		DataSourceName: cfg.dataSourceName(),
-		DriverName:     cfg.driverName(),
-		Instance:       "-",
-	}
-}
-
-func postgresConnString(user, addr, database, certPath string) string {
-	switch {
-	case certPath != "":
-		ssl := fmt.Sprintf("&sslmode=%s&sslcert=%s/client.%s.crt&sslkey=%s/client.%s.key&sslrootcert=%s/ca.crt",
-			"verify-full", certPath, user, certPath, user, certPath)
-
-		return fmt.Sprintf("postgres://%s@%s/%s?%s", user, addr, database, ssl)
-	default:
-		return fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", user, addr, database)
-	}
+	return configs[0].DSN(), nil
 }

@@ -1,9 +1,11 @@
-package pool2
+package pool
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -19,17 +21,12 @@ const (
 	isLive
 )
 
-type DBNodeConfig struct {
-	Addr       string
-	DriverName string
-	Priority   uint
-	Weight     uint
-}
-
 type DBNode struct {
+	config *DBNodeConfig
+
 	addr       string
 	driverName string
-	priority   uint32
+	priority   int32
 	weight     int32
 
 	status      int32
@@ -39,16 +36,20 @@ type DBNode struct {
 	db *sqlx.DB
 }
 
-// TODO нужна валидация конфига
-func NewDBNode(config DBNodeConfig) (*DBNode, error) {
+func NewDBNode(driverName string, config *DBNodeConfig) (*DBNode, error) {
 	if config.Weight == 0 {
 		config.Weight = 1
 	}
 
+	if config.Priority == 0 {
+		config.Priority = 1
+	}
+
 	client := &DBNode{
-		addr:       config.Addr,
-		driverName: config.DriverName,
-		priority:   uint32(config.Priority),
+		config:     config,
+		addr:       config.DSN(),
+		driverName: driverName,
+		priority:   int32(config.Priority),
 		weight:     int32(config.Weight),
 		status:     isPending,
 	}
@@ -57,6 +58,8 @@ func NewDBNode(config DBNodeConfig) (*DBNode, error) {
 }
 
 func (db *DBNode) Connect() error {
+	log.Println(db.addr)
+
 	stdDB, err := sql.Open(db.driverName, db.addr)
 	if err != nil {
 		return fmt.Errorf("can't open db: %w", err)
@@ -69,6 +72,10 @@ func (db *DBNode) Connect() error {
 
 	if err := db.PingContext(ctx); err != nil {
 		return err
+	}
+
+	if db.config.Type == CockroachDatabase {
+		db.config.NodeID = cockroachDBInstans(ctx, db.db)
 	}
 
 	return nil
@@ -232,6 +239,7 @@ func (db *DBNode) setPending() {
 
 func (db *DBNode) copyWithoutDB() *DBNode {
 	return &DBNode{ // TODO: add linter!
+		config:      db.config,
 		addr:        db.addr,
 		driverName:  db.driverName,
 		priority:    db.priority,
@@ -241,4 +249,12 @@ func (db *DBNode) copyWithoutDB() *DBNode {
 		lastUseTime: 0,
 		db:          nil,
 	}
+}
+
+func cockroachDBInstans(ctx context.Context, db *sqlx.DB) string {
+	var nodeID int
+
+	_ = db.GetContext(ctx, &nodeID, `SHOW node_id`)
+
+	return strconv.Itoa(nodeID)
 }

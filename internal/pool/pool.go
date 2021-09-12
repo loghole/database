@@ -1,4 +1,4 @@
-package pool2
+package pool
 
 import (
 	"context"
@@ -32,14 +32,32 @@ var (
 	ErrNoAvailableClients = errors.New("no available clients")
 )
 
-// TODO нужна валидация конфига.
+type ClusterPool struct {
+	clients []*DBNode
+
+	canUseOtherLevel bool
+	activeTarget     int32
+	activeCurrent    int32
+
+	drainMu       sync.RWMutex
+	pendingMu     sync.Mutex
+	deadSignal    signal.Signal
+	liveSignal    signal.Signal
+	pendingSignal signal.Signal
+}
+
 func NewClusterPool(
+	driverName string,
 	activeCount int,
 	canUseOtherLevel bool,
-	configs []DBNodeConfig,
+	configs []*DBNodeConfig,
 ) (Pool, error) {
+	if activeCount <= 0 {
+		activeCount = 1
+	}
+
 	var (
-		index      = make(map[uint][]DBNodeConfig)
+		index      = make(map[uint][]*DBNodeConfig)
 		priorities = make([]uint, 0)
 	)
 
@@ -74,9 +92,10 @@ func NewClusterPool(
 		canUseOtherLevel: canUseOtherLevel,
 	}
 
+	// TODO можем конектится если есть мертвые хосты
 	for idx, priority := range priorities {
 		for _, config := range index[priority] {
-			node, err := NewDBNode(config)
+			node, err := NewDBNode(driverName, config)
 			if err != nil {
 				return nil, err
 			}
@@ -104,20 +123,6 @@ func NewClusterPool(
 	return pool, nil
 }
 
-type ClusterPool struct {
-	clients []*DBNode
-
-	canUseOtherLevel bool
-	activeTarget     int32
-	activeCurrent    int32
-
-	drainMu       sync.RWMutex
-	pendingMu     sync.Mutex
-	deadSignal    signal.Signal
-	liveSignal    signal.Signal
-	pendingSignal signal.Signal
-}
-
 func (p *ClusterPool) DoQuery(ctx context.Context, cb func(ctx context.Context, db dbsqlx.Database) error) error {
 	for {
 		if err := p.doQuery(ctx, cb); err != nil {
@@ -140,7 +145,7 @@ func (p *ClusterPool) doQuery(ctx context.Context, cb func(ctx context.Context, 
 
 	defer node.subActiveReq()
 
-	if err := cb(ctx, node); err != nil {
+	if err := cb(DBNodeConfigToContext(ctx, node.config), node); err != nil {
 		if isReconnectError(err) {
 			p.errorf(ctx, "select: %v", err)
 			p.setDead(node)
@@ -370,7 +375,6 @@ func (p *ClusterPool) getNode(i int) *DBNode {
 func (p *ClusterPool) toDrain(i int) {
 	p.drainMu.Lock()
 	defer p.drainMu.Unlock()
-
 	p.clients[i] = p.clients[i].copyWithoutDB()
 	p.setPending(p.clients[i])
 }

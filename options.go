@@ -1,8 +1,10 @@
 package database
 
 import (
+	"context"
 	"errors"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/loghole/dbhook"
 	"github.com/opentracing/opentracing-go"
@@ -10,34 +12,40 @@ import (
 	"github.com/loghole/database/hooks"
 )
 
-type Option func(b *builder, cfg *hooks.Config)
+type (
+	TransactionFunc func(ctx context.Context, tx *sqlx.Tx) error
+	RetryFunc       func(retryCount int, err error) bool
+)
+
+type Option func(b *builder)
 
 func WithCustomHook(hook dbhook.Hook) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hook))
 	}
 }
 
-func WithTracingHook(tracer opentracing.Tracer) Option {
-	return func(b *builder, cfg *hooks.Config) {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewTracingHook(tracer, cfg)))
+func WithTracing(tracer opentracing.Tracer) Option {
+	return func(b *builder) {
+		b.tracer = tracer
 	}
 }
 
+/*
 func WithReconnectHook() Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewReconnectHook(cfg)))
 	}
-}
+}*/
 
 func WithSimplerrHook() Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewSimplerrHook()))
 	}
 }
 
 func WithRetryFunc(f RetryFunc) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		b.retryFunc = f
 	}
 }
@@ -46,7 +54,7 @@ func WithCockroachRetryFunc() Option {
 	// Cockroach retryable transaction code
 	const retryableCode = "40001"
 
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		b.retryFunc = func(_ int, err error) bool {
 			var pqErr pq.Error
 
@@ -60,16 +68,15 @@ func WithCockroachRetryFunc() Option {
 }
 
 func WithDefaultOptions(tracer opentracing.Tracer) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return func(b *builder) {
 		opts := []Option{
-			WithTracingHook(tracer),
-			WithReconnectHook(),
+			WithTracing(tracer),
 			WithSimplerrHook(),
 			WithCockroachRetryFunc(),
 		}
 
 		for _, fn := range opts {
-			fn(b, cfg)
+			fn(b)
 		}
 	}
 }
@@ -77,13 +84,14 @@ func WithDefaultOptions(tracer opentracing.Tracer) Option {
 type builder struct {
 	retryFunc   RetryFunc
 	hookOptions []dbhook.HookOption
+	tracer      opentracing.Tracer
 }
 
-func applyOptions(cfg *hooks.Config, options ...Option) *builder {
+func applyOptions(options ...Option) *builder {
 	b := new(builder)
 
 	for _, option := range options {
-		option(b, cfg)
+		option(b)
 	}
 
 	return b
