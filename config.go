@@ -6,6 +6,7 @@ import (
 	"github.com/loghole/database/hooks"
 	"github.com/loghole/database/internal/addrlist"
 	"github.com/loghole/database/internal/pool"
+	"github.com/loghole/database/internal/pool2"
 )
 
 type DBType string
@@ -54,6 +55,27 @@ func (cfg *Config) nodeConfigs() []pool.DBNodeConfig {
 		}
 
 		config := pool.DBNodeConfig{
+			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
+			DriverName: cfg.driverName(),
+			Priority:   addr.Priority,
+			Weight:     addr.Weight,
+		}
+
+		configs = append(configs, config)
+	}
+
+	return configs
+}
+
+func (cfg *Config) nodeConfigs2() []pool2.DBNodeConfig {
+	configs := make([]pool2.DBNodeConfig, 0)
+
+	for _, addr := range cfg.AddrList.All() {
+		if addr.Weight == 0 {
+			addr.Weight = 1
+		}
+
+		config := pool2.DBNodeConfig{
 			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
 			DriverName: cfg.driverName(),
 			Priority:   addr.Priority,

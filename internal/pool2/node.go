@@ -1,4 +1,4 @@
-package pool
+package pool2
 
 import (
 	"context"
@@ -41,11 +41,15 @@ type DBNode struct {
 
 // TODO нужна валидация конфига
 func NewDBNode(config DBNodeConfig) (*DBNode, error) {
+	if config.Weight == 0 {
+		config.Weight = 1
+	}
+
 	client := &DBNode{
 		addr:       config.Addr,
 		driverName: config.DriverName,
 		priority:   uint32(config.Priority),
-		weight:     int32(config.Weight), // TODO weight == 0 return error or get default?
+		weight:     int32(config.Weight),
 		status:     isPending,
 	}
 
@@ -94,7 +98,6 @@ func (db *DBNode) Close() error {
 
 func (db *DBNode) PingContext(ctx context.Context) error {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.PingContext(ctx)
 }
@@ -102,7 +105,6 @@ func (db *DBNode) PingContext(ctx context.Context) error {
 // BindNamed binds a query using the DB driver's bindvar type.
 func (db *DBNode) BindNamed(query string, arg interface{}) (string, []interface{}, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.BindNamed(query, arg)
 }
@@ -110,7 +112,6 @@ func (db *DBNode) BindNamed(query string, arg interface{}) (string, []interface{
 // Beginx begins a transaction and returns an *sqlx.Tx instead of an *sql.Tx.
 func (db *DBNode) Beginx() (*sqlx.Tx, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.Beginx()
 }
@@ -124,7 +125,6 @@ func (db *DBNode) Beginx() (*sqlx.Tx, error) {
 // BeginxContext is canceled.
 func (db *DBNode) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.BeginTxx(ctx, opts)
 }
@@ -134,7 +134,6 @@ func (db *DBNode) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, 
 // An error is returned if the result set is empty.
 func (db *DBNode) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.GetContext(ctx, dest, query, args...)
 }
@@ -143,7 +142,6 @@ func (db *DBNode) GetContext(ctx context.Context, dest interface{}, query string
 // Any placeholder parameters are replaced with supplied args.
 func (db *DBNode) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.SelectContext(ctx, dest, query, args...)
 }
@@ -152,7 +150,6 @@ func (db *DBNode) SelectContext(ctx context.Context, dest interface{}, query str
 // The args are for any placeholder parameters in the query.
 func (db *DBNode) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.ExecContext(ctx, query, args...)
 }
@@ -161,7 +158,6 @@ func (db *DBNode) ExecContext(ctx context.Context, query string, args ...interfa
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DBNode) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.NamedExecContext(ctx, query, arg)
 }
@@ -170,7 +166,6 @@ func (db *DBNode) NamedExecContext(ctx context.Context, query string, arg interf
 // Any placeholder parameters are replaced with supplied args.
 func (db *DBNode) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.QueryxContext(ctx, query, args...)
 }
@@ -179,7 +174,6 @@ func (db *DBNode) QueryxContext(ctx context.Context, query string, args ...inter
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DBNode) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.NamedQueryContext(ctx, query, arg)
 }
@@ -187,7 +181,6 @@ func (db *DBNode) NamedQueryContext(ctx context.Context, query string, arg inter
 // PreparexContext returns an sqlx.Stmt instead of a sqlx.Stmt.
 func (db *DBNode) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.PreparexContext(ctx, query)
 }
@@ -195,7 +188,6 @@ func (db *DBNode) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt
 // PrepareNamedContext returns an sqlx.NamedStmt.
 func (db *DBNode) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
 	db.setLastUsedTime()
-	defer db.subActiveReq()
 
 	return db.db.PrepareNamedContext(ctx, query)
 }
@@ -211,11 +203,11 @@ func (db *DBNode) loadLastUseTime() int64 {
 }
 
 func (db *DBNode) addActiveReq() int32 {
-	return atomic.AddInt32(&db.activeReq, -1)
+	return atomic.AddInt32(&db.activeReq, 1)
 }
 
 func (db *DBNode) subActiveReq() int32 {
-	return atomic.AddInt32(&db.activeReq, 1)
+	return atomic.AddInt32(&db.activeReq, -1)
 }
 
 func (db *DBNode) setLastUsedTime() {

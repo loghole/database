@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/loghole/database/internal/dbsqlx"
-	"github.com/loghole/database/internal/pool"
+	"github.com/loghole/database/internal/pool2"
 )
 
 type DB3 struct {
-	pool pool.Pool
+	pool pool2.Pool
 }
 
 func NewDB3(cfg *Config, options ...Option) (db *DB3, err error) {
@@ -27,7 +27,7 @@ func NewDB3(cfg *Config, options ...Option) (db *DB3, err error) {
 
 	db = &DB3{}
 
-	db.pool, err = pool.NewClusterPool(2, cfg.nodeConfigs())
+	db.pool, err = pool2.NewClusterPool(2, true, cfg.nodeConfigs2())
 	if err != nil {
 		return nil, fmt.Errorf("new pool: %w", err)
 	}
