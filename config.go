@@ -49,6 +49,10 @@ func (cfg *Config) nodeConfigs() []pool.DBNodeConfig {
 	configs := make([]pool.DBNodeConfig, 0)
 
 	for _, addr := range cfg.AddrList.All() {
+		if addr.Weight == 0 {
+			addr.Weight = 1
+		}
+
 		config := pool.DBNodeConfig{
 			Addr:       postgresConnString(cfg.User, addr.Addr, cfg.Database, cfg.CertPath),
 			DriverName: cfg.driverName(),

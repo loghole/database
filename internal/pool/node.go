@@ -93,30 +93,24 @@ func (db *DBNode) Close() error {
 }
 
 func (db *DBNode) PingContext(ctx context.Context) error {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.PingContext(ctx)
 }
 
 // BindNamed binds a query using the DB driver's bindvar type.
 func (db *DBNode) BindNamed(query string, arg interface{}) (string, []interface{}, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.BindNamed(query, arg)
 }
 
 // Beginx begins a transaction and returns an *sqlx.Tx instead of an *sql.Tx.
 func (db *DBNode) Beginx() (*sqlx.Tx, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.Beginx()
 }
@@ -129,10 +123,8 @@ func (db *DBNode) Beginx() (*sqlx.Tx, error) {
 // transaction. Tx.Commit will return an error if the context provided to
 // BeginxContext is canceled.
 func (db *DBNode) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.BeginTxx(ctx, opts)
 }
@@ -141,10 +133,8 @@ func (db *DBNode) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, 
 // Any placeholder parameters are replaced with supplied args.
 // An error is returned if the result set is empty.
 func (db *DBNode) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.GetContext(ctx, dest, query, args...)
 }
@@ -152,10 +142,8 @@ func (db *DBNode) GetContext(ctx context.Context, dest interface{}, query string
 // SelectContext using this DB.
 // Any placeholder parameters are replaced with supplied args.
 func (db *DBNode) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.SelectContext(ctx, dest, query, args...)
 }
@@ -163,10 +151,8 @@ func (db *DBNode) SelectContext(ctx context.Context, dest interface{}, query str
 // ExecContext executes a query without returning any rows.
 // The args are for any placeholder parameters in the query.
 func (db *DBNode) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.ExecContext(ctx, query, args...)
 }
@@ -174,10 +160,8 @@ func (db *DBNode) ExecContext(ctx context.Context, query string, args ...interfa
 // NamedExecContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DBNode) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.NamedExecContext(ctx, query, arg)
 }
@@ -185,10 +169,8 @@ func (db *DBNode) NamedExecContext(ctx context.Context, query string, arg interf
 // QueryxContext queries the database and returns an *sqlx.Rows.
 // Any placeholder parameters are replaced with supplied args.
 func (db *DBNode) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.QueryxContext(ctx, query, args...)
 }
@@ -196,40 +178,75 @@ func (db *DBNode) QueryxContext(ctx context.Context, query string, args ...inter
 // NamedQueryContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
 func (db *DBNode) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.NamedQueryContext(ctx, query, arg)
 }
 
 // PreparexContext returns an sqlx.Stmt instead of a sqlx.Stmt.
 func (db *DBNode) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.PreparexContext(ctx, query)
 }
 
 // PrepareNamedContext returns an sqlx.NamedStmt.
 func (db *DBNode) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
-	atomic.AddInt32(&db.activeReq, 1)
-	defer atomic.AddInt32(&db.activeReq, -1)
-
-	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+	db.setLastUsedTime()
+	defer db.subActiveReq()
 
 	return db.db.PrepareNamedContext(ctx, query)
 }
 
 // ActiveRequests returns all active request of node client.
-func (db *DBNode) ActiveRequests() int32 {
+func (db *DBNode) loadActiveRequests() int32 {
 	return atomic.LoadInt32(&db.activeReq)
 }
 
 // LastUseTime returns time of last started request.
-func (db *DBNode) LastUseTime() int64 {
+func (db *DBNode) loadLastUseTime() int64 {
 	return atomic.LoadInt64(&db.lastUseTime)
+}
+
+func (db *DBNode) addActiveReq() int32 {
+	return atomic.AddInt32(&db.activeReq, -1)
+}
+
+func (db *DBNode) subActiveReq() int32 {
+	return atomic.AddInt32(&db.activeReq, 1)
+}
+
+func (db *DBNode) setLastUsedTime() {
+	atomic.StoreInt64(&db.lastUseTime, time.Now().UnixNano())
+}
+
+func (db *DBNode) loadStatus() int32 {
+	return atomic.LoadInt32(&db.status)
+}
+
+func (db *DBNode) setDead() {
+	atomic.StoreInt32(&db.status, isDead)
+}
+
+func (db *DBNode) setLive() {
+	atomic.StoreInt32(&db.status, isLive)
+}
+
+func (db *DBNode) setPending() {
+	atomic.StoreInt32(&db.status, isPending)
+}
+
+func (db *DBNode) copyWithoutDB() *DBNode {
+	return &DBNode{ // TODO: add linter!
+		addr:        db.addr,
+		driverName:  db.driverName,
+		priority:    db.priority,
+		weight:      db.weight,
+		status:      isPending,
+		activeReq:   0,
+		lastUseTime: 0,
+		db:          nil,
+	}
 }

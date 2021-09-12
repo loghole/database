@@ -61,10 +61,11 @@ func NewClusterPool(activeCount int, configs []DBNodeConfig) (Pool, error) {
 	})
 
 	pool := &ClusterPool{
-		activeTarget: int32(activeCount),
-		clients:      make([][]*DBNode, len(priorities)),
-		deadSignal:   signal.New(),
-		liveSignal:   signal.New(),
+		activeTarget:  int32(activeCount),
+		clients:       make([][]*DBNode, len(priorities)),
+		deadSignal:    signal.New(),
+		liveSignal:    signal.New(),
+		pendingSignal: signal.New(),
 	}
 
 	for idx, priority := range priorities {
@@ -88,8 +89,11 @@ func NewClusterPool(activeCount int, configs []DBNodeConfig) (Pool, error) {
 		}
 	}
 
+	log.Println(pool.clients)
+
 	go pool.connectWorker()
-	go pool.closeWorker()
+	go pool.pendingWorker()
+	go pool.liveWorker()
 
 	return pool, nil
 }
@@ -100,23 +104,11 @@ type ClusterPool struct {
 	activeTarget  int32
 	activeCurrent int32
 
-	drainMu    sync.RWMutex
-	pendingMu  sync.Mutex
-	deadSignal signal.Signal
-	liveSignal signal.Signal
-}
-
-func copyNodeWithoutDB(node *DBNode) *DBNode {
-	return &DBNode{ // TODO add linter?
-		addr:        node.addr,
-		driverName:  node.driverName,
-		priority:    node.priority,
-		weight:      node.weight,
-		status:      isPending,
-		activeReq:   0,
-		lastUseTime: 0,
-		db:          nil,
-	}
+	drainMu       sync.RWMutex
+	pendingMu     sync.Mutex
+	deadSignal    signal.Signal
+	liveSignal    signal.Signal
+	pendingSignal signal.Signal
 }
 
 func (p *ClusterPool) DoQuery(ctx context.Context, cb func(ctx context.Context, db dbsqlx.Database) error) error {
@@ -183,32 +175,11 @@ func (p *ClusterPool) next(ctx context.Context) (*DBNode, error) {
 	}
 }
 
-func (p *ClusterPool) setDead(node *DBNode) {
-	atomic.StoreInt32(&node.status, isDead)
-	atomic.AddInt32(&p.activeCurrent, -1)
-
-	p.deadSignal.Send()
-}
-
-func (p *ClusterPool) setLive(node *DBNode) {
-	atomic.StoreInt32(&node.status, isLive)
-	atomic.AddInt32(&p.activeCurrent, 1)
-
-	p.liveSignal.Send()
-}
-
-func (p *ClusterPool) setPending(node *DBNode) {
-	atomic.StoreInt32(&node.status, isPending)
-	atomic.AddInt32(&p.activeCurrent, -1)
-}
-
 func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
 	p.drainMu.RLock()
 	defer p.drainMu.RUnlock()
 
-	clients := p.clients // TODO зачем?
-
-	for _, list := range clients {
+	for _, list := range p.clients {
 		var (
 			minClient *DBNode
 
@@ -216,14 +187,15 @@ func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
 			minTime   int64 = math.MaxInt64
 		)
 
+	RETRY:
 		for _, client := range list {
-			if atomic.LoadInt32(&client.status) != status {
+			if client.loadStatus() != status {
 				continue
 			}
 
 			var (
-				weight  = client.ActiveRequests() * _reqMultiplier / client.weight
-				useTime = client.LastUseTime()
+				weight  = client.loadActiveRequests() * _reqMultiplier / client.weight
+				useTime = client.loadLastUseTime()
 			)
 
 			if weight < minWeight || (weight == minWeight && useTime < minTime) {
@@ -237,7 +209,14 @@ func (p *ClusterPool) nextByStatus(status int32) (*DBNode, error) {
 			continue
 		}
 
-		// TODO добавить активности + перепроверить статус
+		// Вычитаем на уровень выше
+		minClient.addActiveReq()
+
+		if minClient.loadStatus() != status {
+			minClient.subActiveReq()
+
+			goto RETRY
+		}
 
 		return minClient, nil
 	}
@@ -285,33 +264,31 @@ func (p *ClusterPool) connectWorker() {
 	}
 }
 
-// TODO: выглядит сложновато...
-//  также будут работать n нод из разных приоритетов, но если все слить на одну ноду,
-//  она может отвалиться под нагрузкой что также не круто.
-//
-// Кажется есть проблемы с концепцией. Возможно стоит в пуле держать только активные коннекты, а не активные убирать из пула.
-// Иначе очень сложно решить проблемы гонки данных.
-func (p *ClusterPool) closeWorker() { // TODO pendingWorker?
+// TODO: выглядит сложновато... НО НУЖНО УСЛОЖНИТЬ (сказал Виталик.)
+// Добавить минимальное кол-во активных нод.
+// Например если сдохли 2 ноды из 3 на первом уровне,
+// а у нас минимально активные 2, то надо подрубить одну с уровня 2.
+// Но есть и ожидаемое кол-во нод, которое при нормальной работе кластера надо стараться поддержать.
+func (p *ClusterPool) pendingWorker() {
 LIVE:
 	for range p.liveSignal {
-		for i := len(p.clients); i >= 0; i-- {
-			for j := len(p.clients[i]); j >= 0; j-- {
-				if atomic.LoadInt32(&p.activeCurrent) <= p.activeTarget {
+		for i := len(p.clients) - 1; i >= 0; i-- {
+			for j := len(p.clients[i]) - 1; j >= 0; j-- {
+				if p.loadActiveCurrent() <= p.activeTarget {
 					continue LIVE
 				}
 
 				node := p.getNode(i, j)
 
-				if atomic.LoadInt32(&node.status) != isLive {
+				if node.loadStatus() != isLive {
 					continue
 				}
 
 				p.toDrain(i, j)
 
-				// Встаем ждать в отдельном потоке
 				go func() {
 					// Встаем в ожидании завершения активных запросов.
-					for atomic.LoadInt32(&node.activeReq) != 0 {
+					for node.loadActiveRequests() != 0 {
 						time.Sleep(_drainWaitInterval)
 					}
 
@@ -335,13 +312,87 @@ func (p *ClusterPool) toDrain(i, j int) {
 	p.drainMu.Lock()
 	defer p.drainMu.Unlock()
 
-	p.clients[i][j] = copyNodeWithoutDB(p.clients[i][j])
+	p.clients[i][j] = p.clients[i][j].copyWithoutDB()
 	p.setPending(p.clients[i][j])
 }
 
 // TODO: add cool logger.
 func (p *ClusterPool) errorf(ctx context.Context, format string, args ...interface{}) {
 	log.Printf("[database] "+format, args...)
+}
+
+func (p *ClusterPool) liveWorker() {
+PENDING:
+	for range p.pendingSignal {
+		log.Println("[PENDING SIGNAL] run loop")
+
+		for i := 0; i < len(p.clients); i++ {
+			for j := 0; j < len(p.clients[i]); j++ {
+				if p.loadActiveCurrent() >= p.activeTarget {
+					log.Println("[PENDING SIGNAL] stop loop")
+
+					continue PENDING
+				}
+
+				node := p.getNode(i, j)
+
+				log.Println("[PENDING SIGNAL] node status: ", node.loadStatus(), node.addr)
+
+				if node.loadStatus() != isPending {
+					log.Println("[PENDING SIGNAL] get next node")
+
+					continue
+				}
+
+				if err := node.Connect(); err != nil {
+					p.errorf(context.Background(), "pending to live: %v", err)
+					node.setDead()
+
+					log.Println("[PENDING SIGNAL] node failed to connect")
+
+					continue
+				}
+
+				log.Println("[PENDING SIGNAL] node connected", node.addr)
+
+				node.setLive()
+			}
+		}
+
+		log.Println("[PENDING SIGNAL] end loop")
+	}
+}
+
+func (p *ClusterPool) setDead(node *DBNode) {
+	node.setDead()
+	p.subActiveCurrent()
+
+	p.pendingSignal.Send()
+	p.deadSignal.Send()
+}
+
+func (p *ClusterPool) setLive(node *DBNode) {
+	p.addActiveCurrent()
+	node.setLive()
+
+	p.liveSignal.Send()
+}
+
+func (p *ClusterPool) setPending(node *DBNode) {
+	node.setPending()
+	p.subActiveCurrent()
+}
+
+func (p *ClusterPool) addActiveCurrent() int32 {
+	return atomic.AddInt32(&p.activeCurrent, 1)
+}
+
+func (p *ClusterPool) subActiveCurrent() int32 {
+	return atomic.AddInt32(&p.activeCurrent, -1)
+}
+
+func (p *ClusterPool) loadActiveCurrent() int32 {
+	return atomic.LoadInt32(&p.activeCurrent)
 }
 
 func isReconnectError(err error) bool {
