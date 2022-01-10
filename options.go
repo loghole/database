@@ -48,10 +48,15 @@ func WithCockroachRetryFunc() Option {
 
 	return func(b *builder, cfg *hooks.Config) {
 		b.retryFunc = func(_ int, err error) bool {
-			var pqErr pq.Error
+			var (
+				pqErr  pq.Error
+				pqErr2 *pq.Error
+			)
 
 			if errors.As(err, &pqErr) {
 				return pqErr.Code == retryableCode
+			} else if errors.As(err, &pqErr2) {
+				return pqErr2.Code == retryableCode
 			}
 
 			return false
