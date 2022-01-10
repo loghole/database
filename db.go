@@ -32,10 +32,12 @@ type (
 )
 
 func New(cfg *Config, options ...Option) (db *DB, err error) {
-	var (
-		hooksCfg = cfg.hookConfig()
-		builder  = applyOptions(hooksCfg, options...)
-	)
+	hooksCfg := cfg.hookConfig()
+
+	builder, err := applyOptions(hooksCfg, options...)
+	if err != nil {
+		return nil, fmt.Errorf("apply options: %w", err)
+	}
 
 	hooksCfg.DriverName, err = wrapDriver(cfg.driverName(), builder.hook())
 	if err != nil {
