@@ -1,71 +1,111 @@
 package database
 
 import (
-	"errors"
+	"fmt"
 
-	"github.com/lib/pq"
 	"github.com/loghole/dbhook"
 	"github.com/opentracing/opentracing-go"
 
 	"github.com/loghole/database/hooks"
+	"github.com/loghole/database/internal/helpers"
+	"github.com/loghole/database/internal/metrics"
 )
 
-type Option func(b *builder, cfg *hooks.Config)
+type Option interface {
+	apply(b *builder, cfg *hooks.Config) error
+}
+
+type optionFn func(b *builder, cfg *hooks.Config) error
+
+func (fn optionFn) apply(b *builder, cfg *hooks.Config) error {
+	return fn(b, cfg)
+}
 
 func WithCustomHook(hook dbhook.Hook) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hook))
-	}
+
+		return nil
+	})
 }
 
 func WithTracingHook(tracer opentracing.Tracer) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewTracingHook(tracer, cfg)))
-	}
+
+		return nil
+	})
 }
 
 func WithReconnectHook() Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewReconnectHook(cfg)))
-	}
+
+		return nil
+	})
 }
 
 func WithSimplerrHook() Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewSimplerrHook()))
-	}
+
+		return nil
+	})
+}
+
+func WithMetricsHook(collector hooks.MetricCollector) Option {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
+		hook := hooks.NewMetricsHook(cfg, collector)
+
+		b.hookOptions = append(
+			b.hookOptions,
+			dbhook.WithHooksBefore(hook),
+			dbhook.WithHooksAfter(hook),
+		)
+
+		return nil
+	})
+}
+
+func WithPrometheusMetrics() Option {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
+		collector, err := metrics.NewMetrics()
+		if err != nil {
+			return fmt.Errorf("init prometheus collector: %w", err)
+		}
+
+		hook := hooks.NewMetricsHook(cfg, collector)
+
+		b.hookOptions = append(
+			b.hookOptions,
+			dbhook.WithHooksBefore(hook),
+			dbhook.WithHooksAfter(hook),
+		)
+
+		return nil
+	})
 }
 
 func WithRetryFunc(f RetryFunc) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.retryFunc = f
-	}
+
+		return nil
+	})
 }
 
 func WithCockroachRetryFunc() Option {
-	// Cockroach retryable transaction code
-	const retryableCode = "40001"
-
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.retryFunc = func(_ int, err error) bool {
-			var (
-				pqErr  pq.Error
-				pqErr2 *pq.Error
-			)
-
-			if errors.As(err, &pqErr) {
-				return pqErr.Code == retryableCode
-			} else if errors.As(err, &pqErr2) {
-				return pqErr2.Code == retryableCode
-			}
-
-			return false
+			return helpers.IsSerialisationFailureErr(err)
 		}
-	}
+
+		return nil
+	})
 }
 
 func WithDefaultOptions(tracer opentracing.Tracer) Option {
-	return func(b *builder, cfg *hooks.Config) {
+	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		opts := []Option{
 			WithTracingHook(tracer),
 			WithReconnectHook(),
@@ -73,10 +113,14 @@ func WithDefaultOptions(tracer opentracing.Tracer) Option {
 			WithCockroachRetryFunc(),
 		}
 
-		for _, fn := range opts {
-			fn(b, cfg)
+		for _, opt := range opts {
+			if err := opt.apply(b, cfg); err != nil {
+				return err // nolint:wrapcheck // need clean err.
+			}
 		}
-	}
+
+		return nil
+	})
 }
 
 type builder struct {
@@ -84,14 +128,16 @@ type builder struct {
 	hookOptions []dbhook.HookOption
 }
 
-func applyOptions(cfg *hooks.Config, options ...Option) *builder {
+func applyOptions(cfg *hooks.Config, options ...Option) (*builder, error) {
 	b := new(builder)
 
-	for _, option := range options {
-		option(b, cfg)
+	for _, opt := range options {
+		if err := opt.apply(b, cfg); err != nil {
+			return nil, err // nolint:wrapcheck // need clean err.
+		}
 	}
 
-	return b
+	return b, nil
 }
 
 func (b *builder) hook() dbhook.Hook {
