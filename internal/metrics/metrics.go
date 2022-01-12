@@ -10,7 +10,6 @@ import (
 
 type Metrics struct {
 	queryDuration *prometheus.SummaryVec
-	activeTxCount *prometheus.GaugeVec
 	retryTxCount  *prometheus.CounterVec
 }
 
@@ -25,13 +24,6 @@ func NewMetrics() (*Metrics, error) {
 			},
 			[]string{"db_type", "db_addr", "db_name", "is_error", "operation"},
 		),
-		activeTxCount: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Name: "sql_active_transactions_count",
-				Help: "Active transactions count to SQL database",
-			},
-			[]string{"db_type", "db_addr", "db_name"},
-		),
 		retryTxCount: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "sql_serialization_failure_errors_total",
@@ -45,31 +37,11 @@ func NewMetrics() (*Metrics, error) {
 		return nil, fmt.Errorf("register 'response time': %w", err)
 	}
 
-	if err := prometheus.Register(metrics.activeTxCount); err != nil {
-		return nil, fmt.Errorf("register 'active tx count': %w", err)
-	}
-
 	if err := prometheus.Register(metrics.retryTxCount); err != nil {
 		return nil, fmt.Errorf("register 'retry tx count': %w", err)
 	}
 
 	return metrics, nil
-}
-
-func (m *Metrics) ActiveTxInc(dbType, dbAddr, dbName string) {
-	m.activeTxCount.With(prometheus.Labels{
-		"db_type": dbType,
-		"db_addr": dbAddr,
-		"db_name": dbName,
-	}).Inc()
-}
-
-func (m *Metrics) ActiveTxDec(dbType, dbAddr, dbName string) {
-	m.activeTxCount.With(prometheus.Labels{
-		"db_type": dbType,
-		"db_addr": dbAddr,
-		"db_name": dbName,
-	}).Dec()
 }
 
 func (m *Metrics) SerializationFailureInc(dbType, dbAddr, dbName string) {
