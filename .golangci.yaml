@@ -1,10 +1,15 @@
 # More info on config here: https://golangci-lint.run/usage/configuration/#config-file
 run:
   timeout: 5m
+  tests: false
+  skip-dirs:
+    - tests
 linters:
   enable-all: true
   disable:
     - exhaustivestruct
+    - wrapcheck
+    - ireturn
   fast: false
 linters-settings:
   gocritic:
@@ -28,3 +33,19 @@ linters-settings:
       - .Errorf(
       - errors.New(
       - .WrapWithCode(
+
+  varnamelen:
+    # The longest distance, in source lines, that is being considered a "small scope." (defaults to 5)
+    # Variables used in at most this many lines will be ignored.
+    max-distance: 12
+    # Ignore "ok" variables that hold the bool return value of a type assertion. (defaults to false)
+    ignore-type-assert-ok: true
+    # Ignore "ok" variables that hold the bool return value of a map index. (defaults to false)
+    ignore-map-index-ok: true
+    # Ignore "ok" variables that hold the bool return value of a channel receive. (defaults to false)
+    ignore-chan-recv-ok: true
+    # Optional list of variable names that should be ignored completely. (defaults to empty list)
+    ignore-names:
+      - db
+      - ok
+      - fn
