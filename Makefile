@@ -12,3 +12,10 @@ test-intergation:
 
 test-intergation-stop:
 	cd tests/reconnect && docker-compose down
+
+test-retry:
+	cd tests/retry && docker-compose up -d postgres
+	cd tests/retry && docker-compose up test
+
+test-retry-stop:
+	cd tests/retry && docker-compose down

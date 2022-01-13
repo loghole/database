@@ -20,7 +20,7 @@ const (
 )
 
 type DB struct {
-	*sqlx.DB
+	DB        *sqlx.DB
 	retryFunc RetryFunc
 	hooksCfg  *hooks.Config
 	baseCfg   *Config
@@ -28,6 +28,7 @@ type DB struct {
 
 type (
 	TransactionFunc func(ctx context.Context, tx *sqlx.Tx) error
+	QueryFunc       func(ctx context.Context, db *sqlx.DB) error
 	RetryFunc       func(retryCount int, err error) bool
 )
 
@@ -61,6 +62,10 @@ func New(cfg *Config, options ...Option) (db *DB, err error) {
 	return db, nil
 }
 
+func (db *DB) Close() error {
+	return db.DB.Close()
+}
+
 func getDBInstans(db *sqlx.DB) string {
 	var nodeID int
 
@@ -91,13 +96,13 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 	return newDriverName, nil
 }
 
-func (d *DB) reconnect() error {
-	tmpDB, err := dbsqlx.NewSQLx(d.hooksCfg.DriverName, d.baseCfg.dataSourceName())
+func (db *DB) reconnect() error {
+	tmpSQLx, err := dbsqlx.NewSQLx(db.hooksCfg.DriverName, db.baseCfg.dataSourceName())
 	if err != nil {
 		return fmt.Errorf("new db: %w", err)
 	}
 
-	*d.DB = *tmpDB
+	*db.DB = *tmpSQLx
 
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/loghole/dbhook"
 	"github.com/opentracing/opentracing-go"
@@ -79,5 +78,5 @@ func (hook *TracingHook) finish(ctx context.Context, input *dbhook.HookInput) (c
 }
 
 func (hook *TracingHook) buildSpanName(action dbhook.CallerType) string {
-	return strings.Join([]string{"SQL", string(action)}, " ")
+	return "SQL" + " " + string(action)
 }

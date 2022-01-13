@@ -11,6 +11,8 @@ import (
 	"github.com/loghole/database/internal/metrics"
 )
 
+const DefaultRetryAttempts = 10
+
 type Option interface {
 	apply(b *builder, cfg *hooks.Config) error
 }
@@ -55,13 +57,7 @@ func WithSimplerrHook() Option {
 
 func WithMetricsHook(collector hooks.MetricCollector) Option {
 	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		hook := hooks.NewMetricsHook(cfg, collector)
-
-		b.hookOptions = append(
-			b.hookOptions,
-			dbhook.WithHooksBefore(hook),
-			dbhook.WithHooksAfter(hook),
-		)
+		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewMetricsHook(cfg, collector)))
 
 		return nil
 	})
@@ -94,14 +90,22 @@ func WithRetryFunc(f RetryFunc) Option {
 	})
 }
 
-func WithCockroachRetryFunc() Option {
+func WithPQRetryFunc(maxAttempts int) Option {
+	if maxAttempts == 0 {
+		maxAttempts = DefaultRetryAttempts
+	}
+
 	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.retryFunc = func(_ int, err error) bool {
-			return helpers.IsSerialisationFailureErr(err)
+		b.retryFunc = func(retryCount int, err error) bool {
+			return helpers.IsSerialisationFailureErr(err) && retryCount < maxAttempts
 		}
 
 		return nil
 	})
+}
+
+func WithCockroachRetryFunc() Option {
+	return WithPQRetryFunc(DefaultRetryAttempts)
 }
 
 func WithDefaultOptions(tracer opentracing.Tracer) Option {
@@ -110,7 +114,7 @@ func WithDefaultOptions(tracer opentracing.Tracer) Option {
 			WithTracingHook(tracer),
 			WithReconnectHook(),
 			WithSimplerrHook(),
-			WithCockroachRetryFunc(),
+			WithPQRetryFunc(DefaultRetryAttempts),
 		}
 
 		for _, opt := range opts {
