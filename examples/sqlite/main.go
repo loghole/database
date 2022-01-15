@@ -1,21 +1,3 @@
-# Database
-[![GoDoc](https://pkg.go.dev/badge/github.com/loghole/database)](https://pkg.go.dev/github.com/loghole/database)
-[![Go Report Card](https://goreportcard.com/badge/github.com/loghole/database)](https://goreportcard.com/report/github.com/loghole/database)
-
-Database is wrapper for [sqlx](https://github.com/jmoiron/sqlx) with clear interface, retry func and hooks.  
-Compatible databases: PostgreSQL, Clickhouse, CockroachDB, SQLite.  
-
-- [Database](#database)
-- [Install](#install)
-- [Usage](#usage)
-- [Custom hooks](#custom-hooks)
-# Install
-```sh
-go get github.com/loghole/database
-```
-
-# Usage
-```go
 package main
 
 import (
@@ -62,7 +44,3 @@ func retry(retryCount int, err error) bool {
 
 	return true
 }
-```
-
-# Custom hooks
-You can write custom hooks with [dbhook](https://github.com/loghole/dbhook) and use options `database.WithCustomHook(hook)`
