@@ -1,0 +1,41 @@
+version: "3"
+services:
+  tests:
+    image: golang:1.17
+    volumes:
+      - ./:/src
+      - go-mod-cache:/go/pkg
+      - go-build-cache:/root/.cache/go-build
+    working_dir: /src/
+    links:
+      - cockroachdb
+      - haproxy
+      - postgres
+      - jaeger
+
+  cockroachdb:
+    image: cockroachdb/cockroach:v20.2.3
+    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080
+  
+  haproxy:
+    image: haproxy:2.3
+    volumes:
+      - ./tests/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    links:
+      - cockroachdb
+
+  postgres:
+    image: postgis/postgis:13-3.1-alpine
+    environment:
+      POSTGRES_PASSWORD: password
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.29
+
+volumes:
+  go-mod-cache:
+    external: true
+  go-build-cache:
+    external: true
+  go-lint-cache:
+    external: true

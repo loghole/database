@@ -5,16 +5,16 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (db *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
-	if parent := opentracing.SpanFromContext(ctx); parent != nil {
-		span := parent.Tracer().StartSpan(transactionSpanName, opentracing.ChildOf(parent.Context()))
-		defer span.Finish()
-
-		ctx = opentracing.ContextWithSpan(ctx, span)
-	}
+	ctx, span := trace.
+		SpanFromContext(ctx).
+		TracerProvider().
+		Tracer(_tracerName).
+		Start(ctx, _transactionSpanName)
+	defer span.End()
 
 	var (
 		retryCount int

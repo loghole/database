@@ -1,10 +1,11 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/loghole/dbhook"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/loghole/database/hooks"
 	"github.com/loghole/database/internal/helpers"
@@ -31,7 +32,7 @@ func WithCustomHook(hook dbhook.Hook) Option {
 	})
 }
 
-func WithTracingHook(tracer opentracing.Tracer) Option {
+func WithTracingHook(tracer trace.Tracer) Option {
 	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewTracingHook(tracer, cfg)))
 
@@ -97,7 +98,11 @@ func WithPQRetryFunc(maxAttempts int) Option {
 
 	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		b.retryFunc = func(retryCount int, err error) bool {
-			return helpers.IsSerialisationFailureErr(err) && retryCount < maxAttempts
+			if retryCount >= maxAttempts {
+				return false
+			}
+
+			return helpers.IsSerialisationFailureErr(err) || errors.Is(err, hooks.ErrCanRetry)
 		}
 
 		return nil
@@ -108,7 +113,7 @@ func WithCockroachRetryFunc() Option {
 	return WithPQRetryFunc(DefaultRetryAttempts)
 }
 
-func WithDefaultOptions(tracer opentracing.Tracer) Option {
+func WithDefaultOptions(tracer trace.Tracer) Option {
 	return optionFn(func(b *builder, cfg *hooks.Config) error {
 		opts := []Option{
 			WithTracingHook(tracer),

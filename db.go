@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	withHookDriverName  = "%s-with-hook-%s"
-	transactionSpanName = "SQL Tx"
+	_withHookDriverName  = "%s-with-hook-%s"
+	_transactionSpanName = "SQL Tx"
+	_tracerName          = "github.com/loghole/database"
 )
 
 type DB struct {
@@ -88,7 +89,7 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 	defer db.Close()
 
 	// nolint:gomnd // num base ok
-	newDriverName := fmt.Sprintf(withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), 36))
+	newDriverName := fmt.Sprintf(_withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), 36))
 
 	// Register wrapped driver with new name for open it later.
 	sql.Register(newDriverName, dbhook.Wrap(db.Driver(), hook))
