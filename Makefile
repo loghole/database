@@ -1,21 +1,11 @@
-GOFLAGS = CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-GOTEST_PACKAGES = $(shell go list ./... | egrep -v '(pkg|cmd)')
-
-test:
-	go test -race -v -cover -coverprofile coverage.out $(GOTEST_PACKAGES)
-
+.PHONY: lint
 lint:
 	golangci-lint run -v
 
-test-intergation:
-	cd tests/reconnect && docker-compose up
+.PHONY: test
+test:
+	go test -race -v ./...
 
-test-intergation-stop:
-	cd tests/reconnect && docker-compose down
-
-test-retry:
-	cd tests/retry && docker-compose up -d postgres
-	cd tests/retry && docker-compose up test
-
-test-retry-stop:
-	cd tests/retry && docker-compose down
+.PHONY: test-integration
+test-integration:
+	docker-compose run --rm tests /bin/sh -c "go test -race -v -tags=integration ./..."

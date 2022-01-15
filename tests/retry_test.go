@@ -1,7 +1,7 @@
 //go:build integration
 // +build integration
 
-package main
+package tests
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/loghole/database"
 )
@@ -49,10 +50,7 @@ func TestMetrics(t *testing.T) {
 		Database: "postgres",
 		Type:     database.PostgresDatabase,
 	}, database.WithMetricsHook(metric))
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	require.NoError(t, err)
 
 	initDB(t, db)
 	metric.reset()
@@ -60,23 +58,19 @@ func TestMetrics(t *testing.T) {
 
 	ctx := context.Background()
 
-	if _, err := db.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 3, "3"); err != nil {
-		t.Error(err)
-		return
-	}
+	_, err = db.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 3, "3")
+	require.NoError(t, err)
 
 	metric.check(t, 0, 1)
 	metric.reset()
 
-	if _, err := db.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 3, "3"); err == nil {
-		t.Error("NO CONFLICT ERROR")
-		return
-	}
+	_, err = db.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 3, "3")
+	assert.EqualError(t, err, "pq: duplicate key value violates unique constraint \"test_metric_pkey\"")
 
 	metric.check(t, 0, 1)
 	metric.reset()
 
-	if err := db.RunTxx(ctx, func(ctx context.Context, tx *sqlx.Tx) error {
+	err = db.RunTxx(ctx, func(ctx context.Context, tx *sqlx.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 4, "4"); err != nil {
 			return err
 		}
@@ -86,20 +80,16 @@ func TestMetrics(t *testing.T) {
 		}
 
 		return nil
-	}); err != nil {
-		t.Error(err)
-		return
-	}
+	})
+	require.NoError(t, err)
 
 	metric.check(t, 0, 4)
 	metric.reset()
 
 	var count int
 
-	if err := db.GetContext(ctx, &count, `SELECT count(id) AS count FROM test_metric`); err != nil {
-		t.Error(err)
-		return
-	}
+	err = db.GetContext(ctx, &count, `SELECT count(id) AS count FROM test_metric`)
+	require.NoError(t, err)
 
 	metric.check(t, 0, 1)
 	metric.reset()
@@ -125,8 +115,7 @@ func initDB(t *testing.T, db *database.DB) {
 
 	for _, query := range queries {
 		if _, err := db.ExecContext(context.TODO(), query); err != nil {
-			t.Errorf("do query '%s': %v", query, err)
-			return
+			require.NoErrorf(t, err, "do query '%s': %v", query)
 		}
 	}
 }
