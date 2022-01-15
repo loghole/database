@@ -61,7 +61,7 @@ func (db *DB) rollback(tx *sqlx.Tx) {
 }
 
 func (db *DB) errIsRetryable(retryCount int, err error) bool {
-	if db.retryFunc != nil {
+	if err != nil && db.retryFunc != nil {
 		return db.retryFunc(retryCount, err)
 	}
 

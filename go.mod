@@ -7,7 +7,8 @@ require (
 	github.com/lib/pq v1.10.4
 	github.com/lissteron/simplerr v0.9.0
 	github.com/loghole/dbhook v0.4.1
-	github.com/prometheus/client_golang v1.7.1
+	github.com/mattn/go-sqlite3 v1.14.10
+	github.com/prometheus/client_golang v1.11.0
 	github.com/stretchr/testify v1.7.0
 	go.opentelemetry.io/otel v1.3.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.3.0
