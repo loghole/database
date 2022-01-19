@@ -9,6 +9,14 @@ import (
 )
 
 func (db *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
+	return db.RunTxxWithOptions(ctx, &sql.TxOptions{}, fn)
+}
+
+func (db *DB) RunReadTxx(ctx context.Context, fn TransactionFunc) error {
+	return db.RunTxxWithOptions(ctx, &sql.TxOptions{ReadOnly: true}, fn)
+}
+
+func (db *DB) RunTxxWithOptions(ctx context.Context, opts *sql.TxOptions, fn TransactionFunc) error {
 	if parent := opentracing.SpanFromContext(ctx); parent != nil {
 		span := parent.Tracer().StartSpan(transactionSpanName, opentracing.ChildOf(parent.Context()))
 		defer span.Finish()
@@ -23,7 +31,7 @@ func (db *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 
 	// Retry transaction.
 	for {
-		if err = db.runTxx(ctx, fn); !db.errIsRetryable(retryCount, err) {
+		if err = db.runTxx(ctx, opts, fn); !db.errIsRetryable(retryCount, err) {
 			break
 		}
 
@@ -37,8 +45,8 @@ func (db *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 	return nil
 }
 
-func (db *DB) runTxx(ctx context.Context, fn TransactionFunc) error {
-	tx, err := db.BeginTxx(ctx, &sql.TxOptions{})
+func (db *DB) runTxx(ctx context.Context, opts *sql.TxOptions, fn TransactionFunc) error {
+	tx, err := db.BeginTxx(ctx, opts)
 	if err != nil {
 		return err
 	}
