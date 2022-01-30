@@ -1,6 +1,7 @@
 # Database
 [![GoDoc](https://pkg.go.dev/badge/github.com/loghole/database)](https://pkg.go.dev/github.com/loghole/database)
 [![Go Report Card](https://goreportcard.com/badge/github.com/loghole/database)](https://goreportcard.com/report/github.com/loghole/database)
+[![Coverage Status](https://coveralls.io/repos/github/loghole/database/badge.svg)](https://coveralls.io/github/loghole/database)
 
 Database is wrapper for [sqlx](https://github.com/jmoiron/sqlx) with clear interface, retry func and hooks.  
 Compatible databases: PostgreSQL, Clickhouse, CockroachDB, SQLite.  

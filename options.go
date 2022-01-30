@@ -14,58 +14,88 @@ import (
 
 const DefaultRetryAttempts = 10
 
-type Option interface {
-	apply(b *builder, cfg *hooks.Config) error
+type options struct {
+	retryFunc   RetryFunc
+	hookOptions []dbhook.HookOption
 }
 
-type optionFn func(b *builder, cfg *hooks.Config) error
+func (o *options) apply(cfg *hooks.Config, opts ...Option) error {
+	for _, opt := range opts {
+		if err := opt.apply(o, cfg); err != nil {
+			return err // nolint:wrapcheck // need clean err.
+		}
+	}
 
-func (fn optionFn) apply(b *builder, cfg *hooks.Config) error {
-	return fn(b, cfg)
+	return nil
+}
+
+func (o *options) hook() dbhook.Hook {
+	if len(o.hookOptions) == 0 {
+		return nil
+	}
+
+	return dbhook.NewHooks(o.hookOptions...)
+}
+
+// Option sets options such as hooks, metrics and retry parameters, etc.
+type Option interface {
+	apply(b *options, cfg *hooks.Config) error
+}
+
+type funcOption struct {
+	fn func(b *options, cfg *hooks.Config) error
+}
+
+func (o *funcOption) apply(opts *options, cfg *hooks.Config) error {
+	return o.fn(opts, cfg)
+}
+
+func newFuncOption(fn func(opts *options, cfg *hooks.Config) error) Option {
+	return &funcOption{fn: fn}
 }
 
 func WithCustomHook(hook dbhook.Hook) Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hook))
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.hookOptions = append(opts.hookOptions, dbhook.WithHook(hook))
 
 		return nil
 	})
 }
 
 func WithTracingHook(tracer trace.Tracer) Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewTracingHook(tracer, cfg)))
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.hookOptions = append(opts.hookOptions, dbhook.WithHook(hooks.NewTracingHook(tracer, cfg)))
 
 		return nil
 	})
 }
 
 func WithReconnectHook() Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewReconnectHook(cfg)))
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.hookOptions = append(opts.hookOptions, dbhook.WithHooksError(hooks.NewReconnectHook(cfg)))
 
 		return nil
 	})
 }
 
 func WithSimplerrHook() Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHooksError(hooks.NewSimplerrHook()))
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.hookOptions = append(opts.hookOptions, dbhook.WithHooksError(hooks.NewSimplerrHook()))
 
 		return nil
 	})
 }
 
 func WithMetricsHook(collector hooks.MetricCollector) Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.hookOptions = append(b.hookOptions, dbhook.WithHook(hooks.NewMetricsHook(cfg, collector)))
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.hookOptions = append(opts.hookOptions, dbhook.WithHook(hooks.NewMetricsHook(cfg, collector)))
 
 		return nil
 	})
 }
 
 func WithPrometheusMetrics() Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
 		collector, err := metrics.NewMetrics()
 		if err != nil {
 			return fmt.Errorf("init prometheus collector: %w", err)
@@ -73,8 +103,8 @@ func WithPrometheusMetrics() Option {
 
 		hook := hooks.NewMetricsHook(cfg, collector)
 
-		b.hookOptions = append(
-			b.hookOptions,
+		opts.hookOptions = append(
+			opts.hookOptions,
 			dbhook.WithHooksBefore(hook),
 			dbhook.WithHooksAfter(hook),
 		)
@@ -84,8 +114,8 @@ func WithPrometheusMetrics() Option {
 }
 
 func WithRetryFunc(f RetryFunc) Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.retryFunc = f
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.retryFunc = f
 
 		return nil
 	})
@@ -96,8 +126,8 @@ func WithPQRetryFunc(maxAttempts int) Option {
 		maxAttempts = DefaultRetryAttempts
 	}
 
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		b.retryFunc = func(retryCount int, err error) bool {
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		opts.retryFunc = func(retryCount int, err error) bool {
 			if retryCount >= maxAttempts {
 				return false
 			}
@@ -114,45 +144,21 @@ func WithCockroachRetryFunc() Option {
 }
 
 func WithDefaultOptions(tracer trace.Tracer) Option {
-	return optionFn(func(b *builder, cfg *hooks.Config) error {
-		opts := []Option{
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		list := []Option{
 			WithTracingHook(tracer),
 			WithReconnectHook(),
 			WithSimplerrHook(),
 			WithPQRetryFunc(DefaultRetryAttempts),
+			WithPrometheusMetrics(),
 		}
 
-		for _, opt := range opts {
-			if err := opt.apply(b, cfg); err != nil {
+		for _, opt := range list {
+			if err := opt.apply(opts, cfg); err != nil {
 				return err // nolint:wrapcheck // need clean err.
 			}
 		}
 
 		return nil
 	})
-}
-
-type builder struct {
-	retryFunc   RetryFunc
-	hookOptions []dbhook.HookOption
-}
-
-func applyOptions(cfg *hooks.Config, options ...Option) (*builder, error) {
-	b := new(builder)
-
-	for _, opt := range options {
-		if err := opt.apply(b, cfg); err != nil {
-			return nil, err // nolint:wrapcheck // need clean err.
-		}
-	}
-
-	return b, nil
-}
-
-func (b *builder) hook() dbhook.Hook {
-	if len(b.hookOptions) == 0 {
-		return nil
-	}
-
-	return dbhook.NewHooks(b.hookOptions...)
 }

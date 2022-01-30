@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/loghole/database/hooks"
 )
@@ -28,7 +29,7 @@ type Config struct {
 	WriteTimeout string
 }
 
-func (cfg *Config) DSN() (connStr string) {
+func (cfg *Config) DSN() string {
 	return cfg.dataSourceName()
 }
 
@@ -73,7 +74,7 @@ func (cfg *Config) driverName() string {
 func (cfg *Config) hookConfig() *hooks.Config {
 	return &hooks.Config{
 		Addr:           cfg.Addr,
-		User:           cfg.User,
+		User:           strings.Split(cfg.User, ":")[0], // trim password part if exists.
 		Database:       cfg.Database,
 		CertPath:       cfg.CertPath,
 		Type:           cfg.Type.String(),

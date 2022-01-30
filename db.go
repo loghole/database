@@ -15,16 +15,17 @@ import (
 )
 
 const (
-	_withHookDriverName  = "%s-with-hook-%s"
-	_transactionSpanName = "SQL Tx"
-	_tracerName          = "github.com/loghole/database"
+	_withHookDriverName = "%s-with-hook-%s"
+	_txSpanName         = "SQL Tx"
+	_defaultTracerName  = "github.com/loghole/database"
 )
 
 type DB struct {
-	DB        *sqlx.DB
-	retryFunc RetryFunc
-	hooksCfg  *hooks.Config
-	baseCfg   *Config
+	DB       *sqlx.DB
+	hooksCfg *hooks.Config
+	baseCfg  *Config
+
+	options options
 }
 
 type (
@@ -33,36 +34,38 @@ type (
 	RetryFunc       func(retryCount int, err error) bool
 )
 
-func New(cfg *Config, options ...Option) (db *DB, err error) {
-	hooksCfg := cfg.hookConfig()
+func New(cfg *Config, opts ...Option) (db *DB, err error) {
+	db = &DB{
+		baseCfg:  cfg,
+		hooksCfg: cfg.hookConfig(),
+	}
 
-	builder, err := applyOptions(hooksCfg, options...)
-	if err != nil {
+	if err := db.options.apply(db.hooksCfg, opts...); err != nil {
 		return nil, fmt.Errorf("apply options: %w", err)
 	}
 
-	hooksCfg.DriverName, err = wrapDriver(cfg.driverName(), builder.hook())
+	db.hooksCfg.DriverName, err = wrapDriver(cfg.driverName(), db.options.hook())
 	if err != nil {
 		return nil, fmt.Errorf("wrap driver: %w", err)
 	}
 
-	db = &DB{
-		retryFunc: builder.retryFunc,
-		hooksCfg:  hooksCfg,
-		baseCfg:   cfg,
-	}
-
-	db.DB, err = dbsqlx.NewSQLx(hooksCfg.DriverName, cfg.dataSourceName())
+	db.DB, err = dbsqlx.NewSQLx(db.hooksCfg.DriverName, cfg.dataSourceName())
 	if err != nil {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
 
-	hooksCfg.Instance = getDBInstans(db.DB)
-	hooksCfg.ReconnectFn = db.reconnect
+	db.hooksCfg.Instance = getDBInstans(db.DB)
+	db.hooksCfg.ReconnectFn = db.reconnect
 
 	return db, nil
 }
 
+// Close closes the database and prevents new queries from starting.
+// Close then waits for all queries that have started processing on the server
+// to finish.
+//
+// It is rare to Close a DB, as the DB handle is meant to be
+// long-lived and shared between many goroutines.
 func (db *DB) Close() error {
 	return db.DB.Close()
 }
@@ -103,7 +106,18 @@ func (db *DB) reconnect() error {
 		return fmt.Errorf("new db: %w", err)
 	}
 
+	oldDB := *db.DB
 	*db.DB = *tmpSQLx
 
+	go oldDB.Close()
+
 	return nil
+}
+
+func (db *DB) errIsRetryable(retryCount int, err error) bool {
+	if fn := db.options.retryFunc; err != nil && fn != nil {
+		return fn(retryCount, err)
+	}
+
+	return false
 }
