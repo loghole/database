@@ -26,7 +26,7 @@ func (db *DB) GetContext(ctx context.Context, dest interface{}, query string, ar
 
 // BindNamed binds a query using the DB driver's bindvar type.
 func (db *DB) BindNamed(query string, arg interface{}) (bound string, arglist []interface{}, err error) {
-	if err := db.runQuery(context.Background(), func(ctx context.Context, db *sqlx.DB) error {
+	err = db.runQuery(context.Background(), func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		if bound, arglist, err = db.BindNamed(query, arg); err != nil {
@@ -34,30 +34,9 @@ func (db *DB) BindNamed(query string, arg interface{}) (bound string, arglist []
 		}
 
 		return nil
-	}); err != nil {
-		return "", nil, err
-	}
+	})
 
-	return bound, arglist, nil
-}
-
-// Beginx begins a transaction and returns an *sqlx.Tx instead of an *sql.Tx.
-func (db *DB) Beginx() (*sqlx.Tx, error) {
-	var tx *sqlx.Tx
-
-	if err := db.runQuery(context.Background(), func(ctx context.Context, db *sqlx.DB) error {
-		var err error
-
-		if tx, err = db.Beginx(); err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return tx, nil
+	return bound, arglist, err
 }
 
 // BeginTxx begins a transaction and returns an *sqlx.Tx instead of an
@@ -67,10 +46,8 @@ func (db *DB) Beginx() (*sqlx.Tx, error) {
 // back. If the context is canceled, the sql package will roll back the
 // transaction. Tx.Commit will return an error if the context provided to
 // BeginxContext is canceled.
-func (db *DB) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, error) {
-	var tx *sqlx.Tx
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) BeginTxx(ctx context.Context, opts *sql.TxOptions) (tx *sqlx.Tx, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		if tx, err = db.BeginTxx(ctx, opts); err != nil {
@@ -78,19 +55,15 @@ func (db *DB) BeginTxx(ctx context.Context, opts *sql.TxOptions) (*sqlx.Tx, erro
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return tx, nil
+	return tx, err
 }
 
 // ExecContext executes a query without returning any rows.
 // The args are for any placeholder parameters in the query.
-func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	var result sql.Result
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}) (result sql.Result, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		if result, err = db.ExecContext(ctx, query, args...); err != nil {
@@ -98,19 +71,15 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...interface{}
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return result, nil
+	return result, err
 }
 
 // NamedExecContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
-func (db *DB) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
-	var result sql.Result
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) NamedExecContext(ctx context.Context, query string, arg interface{}) (result sql.Result, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		if result, err = db.NamedExecContext(ctx, query, arg); err != nil {
@@ -118,19 +87,15 @@ func (db *DB) NamedExecContext(ctx context.Context, query string, arg interface{
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return result, nil
+	return result, err
 }
 
 // QueryxContext queries the database and returns an *sqlx.Rows.
 // Any placeholder parameters are replaced with supplied args.
-func (db *DB) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
-	var rows *sqlx.Rows
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) QueryxContext(ctx context.Context, query string, args ...interface{}) (rows *sqlx.Rows, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		// nolint:sqlclosecheck // will be closed at the upper level
@@ -139,19 +104,15 @@ func (db *DB) QueryxContext(ctx context.Context, query string, args ...interface
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return rows, nil
+	return rows, err
 }
 
 // NamedQueryContext using this DB.
 // Any named placeholder parameters are replaced with fields from arg.
-func (db *DB) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
-	var rows *sqlx.Rows
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) NamedQueryContext(ctx context.Context, query string, arg interface{}) (rows *sqlx.Rows, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		// nolint:sqlclosecheck // will be closed at the upper level
@@ -160,18 +121,14 @@ func (db *DB) NamedQueryContext(ctx context.Context, query string, arg interface
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return rows, nil
+	return rows, err
 }
 
 // PreparexContext returns an sqlx.Stmt instead of a sqlx.Stmt.
-func (db *DB) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
-	var stmt *sqlx.Stmt
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) PreparexContext(ctx context.Context, query string) (stmt *sqlx.Stmt, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		// nolint:sqlclosecheck // will be closed at the upper level
@@ -180,18 +137,14 @@ func (db *DB) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, er
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return stmt, nil
+	return stmt, err
 }
 
 // PrepareNamedContext returns an sqlx.NamedStmt.
-func (db *DB) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
-	var stmt *sqlx.NamedStmt
-
-	if err := db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
+func (db *DB) PrepareNamedContext(ctx context.Context, query string) (stmt *sqlx.NamedStmt, err error) {
+	err = db.runQuery(ctx, func(ctx context.Context, db *sqlx.DB) error {
 		var err error
 
 		if stmt, err = db.PrepareNamedContext(ctx, query); err != nil {
@@ -199,22 +152,20 @@ func (db *DB) PrepareNamedContext(ctx context.Context, query string) (*sqlx.Name
 		}
 
 		return nil
-	}); err != nil {
-		return nil, err
-	}
+	})
 
-	return stmt, nil
+	return stmt, err
 }
 
-func (db *DB) runQuery(ctx context.Context, cb QueryFunc) (err error) {
+func (db *DB) runQuery(ctx context.Context, fn QueryFunc) (err error) {
 	var retryCount int
 
 	for {
-		if err = cb(ctx, db.DB); !db.errIsRetryable(retryCount, err) {
+		retryCount++
+
+		if err = fn(ctx, db.DB); !db.errIsRetryable(retryCount, err) {
 			break
 		}
-
-		retryCount++
 	}
 
 	if err != nil {

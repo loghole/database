@@ -1,6 +1,6 @@
 package hooks
 
-// Internal hook config with specified information.
+// Config is internal hook config with specified information.
 type Config struct {
 	ReconnectFn func() error
 

@@ -3,10 +3,11 @@ module github.com/loghole/database
 go 1.17
 
 require (
+	github.com/golang/mock v1.6.0
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/lib/pq v1.10.4
 	github.com/lissteron/simplerr v0.9.0
-	github.com/loghole/dbhook v0.4.1
+	github.com/loghole/dbhook v0.4.2
 	github.com/mattn/go-sqlite3 v1.14.10
 	github.com/prometheus/client_golang v1.11.0
 	github.com/stretchr/testify v1.7.0

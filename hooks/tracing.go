@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/loghole/dbhook"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -24,7 +24,7 @@ func NewTracingHook(tracer trace.Tracer, config *Config) *TracingHook {
 }
 
 func (hook *TracingHook) Before(ctx context.Context, input *dbhook.HookInput) (context.Context, error) {
-	ctx, span := hook.tracer.Start(ctx, hook.buildSpanName(input.Caller))
+	ctx, span := hook.tracer.Start(ctx, hook.buildSpanName(input.Caller), trace.WithSpanKind(trace.SpanKindInternal))
 
 	span.SetAttributes(
 		semconv.DBUserKey.String(hook.config.User),
@@ -61,7 +61,7 @@ func (hook *TracingHook) finish(ctx context.Context, input *dbhook.HookInput) (c
 		}
 
 		span.RecordError(input.Error)
-		span.SetAttributes(attribute.Bool("error", true))
+		span.SetStatus(codes.Error, "error")
 	}
 
 	return ctx, input.Error

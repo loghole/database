@@ -24,7 +24,7 @@ import (
 	"github.com/loghole/database/hooks"
 )
 
-func _TestReconnectHook(t *testing.T) {
+func TestReconnectHook(t *testing.T) {
 	const dbName = "base"
 
 	initDatabase(t, dbName)

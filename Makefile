@@ -1,3 +1,13 @@
+.PHONY: default
+default: create_volumes lint test
+
+## Actions
+.PHONY: create_volumes
+create_volumes:
+	docker volume create go-mod-cache
+	docker volume create go-build-cache
+	docker volume create go-lint-cache
+
 .PHONY: lint
 lint:
 	golangci-lint run -v
