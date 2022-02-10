@@ -20,7 +20,7 @@ func TestConfig_DSN(t *testing.T) {
 				Database: "database",
 				Type:     PostgresDatabase,
 			},
-			want: "postgresql://postgres@127.0.0.1:5432/database?sslmode=disable",
+			want: "postgres://postgres@127.0.0.1:5432/database?sslmode=disable",
 		},
 		{
 			name: "postgres with certs",
@@ -31,7 +31,23 @@ func TestConfig_DSN(t *testing.T) {
 				Type:     PostgresDatabase,
 				CertPath: "/certs",
 			},
-			want: "postgres://postgres@127.0.0.1:5432/database?&sslmode=verify-full&sslcert=/certs/client.postgres.crt&sslkey=/certs/client.postgres.key&sslrootcert=/certs/ca.crt",
+			want: "postgres://postgres@127.0.0.1:5432/database?sslcert=/certs/client.postgres.crt&sslkey=/certs/client.postgres.key&sslmode=verify-full&sslrootcert=/certs/ca.crt",
+		},
+		{
+			name: "postgres with params",
+			config: &Config{
+				Addr:     "127.0.0.1:5432",
+				User:     "postgres",
+				Database: "database",
+				Type:     PostgresDatabase,
+				Params: map[string]string{
+					"sslmode":     "verify-full",
+					"sslcert":     "/certs/client.postgres.crt",
+					"sslkey":      "/certs/client.postgres.key",
+					"sslrootcert": "/certs/ca.crt",
+				},
+			},
+			want: "postgres://postgres@127.0.0.1:5432/database?sslcert=/certs/client.postgres.crt&sslkey=/certs/client.postgres.key&sslmode=verify-full&sslrootcert=/certs/ca.crt",
 		},
 		{
 			name: "clickhouse",
@@ -43,7 +59,17 @@ func TestConfig_DSN(t *testing.T) {
 				ReadTimeout:  "10s",
 				WriteTimeout: "15s",
 			},
-			want: "tcp://127.0.0.1:9000?username=default&database=database&read_timeout=10s&write_timeout=15s",
+			want: "tcp://127.0.0.1:9000?database=database&read_timeout=10s&username=default&write_timeout=15s",
+		},
+		{
+			name: "clickhouse without params",
+			config: &Config{
+				Addr:     "127.0.0.1:9000",
+				User:     "default",
+				Database: "database",
+				Type:     ClickhouseDatabase,
+			},
+			want: "tcp://127.0.0.1:9000?database=database&username=default",
 		},
 		{
 			name: "sqlite",
@@ -52,6 +78,18 @@ func TestConfig_DSN(t *testing.T) {
 				Type:     SQLiteDatabase,
 			},
 			want: ":memory:",
+		},
+		{
+			name: "sqlite with params",
+			config: &Config{
+				Database: ":memory:",
+				Type:     SQLiteDatabase,
+				Params: map[string]string{
+					"_auth_user": "user",
+					"_auth_pass": "password",
+				},
+			},
+			want: ":memory:?_auth_pass=password&_auth_user=user",
 		},
 	}
 	for _, tt := range tests {

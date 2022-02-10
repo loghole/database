@@ -49,7 +49,7 @@ func New(cfg *Config, opts ...Option) (db *DB, err error) {
 		return nil, fmt.Errorf("wrap driver: %w", err)
 	}
 
-	db.DB, err = dbsqlx.NewSQLx(db.hooksCfg.DriverName, cfg.dataSourceName())
+	db.DB, err = dbsqlx.NewSQLx(db.hooksCfg.DriverName, cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
@@ -101,7 +101,7 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 }
 
 func (db *DB) reconnect() error {
-	tmpSQLx, err := dbsqlx.NewSQLx(db.hooksCfg.DriverName, db.baseCfg.dataSourceName())
+	tmpSQLx, err := dbsqlx.NewSQLx(db.hooksCfg.DriverName, db.baseCfg.DSN())
 	if err != nil {
 		return fmt.Errorf("new db: %w", err)
 	}

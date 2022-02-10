@@ -65,6 +65,20 @@ func TestDB_RunTxx(t *testing.T) {
 			},
 			wantErr: assert.Error,
 		},
+		{
+			name: "commit error",
+			args: args{
+				ctx: context.Background(),
+				fn: func(ctx context.Context, tx *sqlx.Tx) error {
+					if err := tx.Rollback(); err != nil {
+						return err
+					}
+
+					return nil
+				},
+			},
+			wantErr: assert.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
