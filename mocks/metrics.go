@@ -35,15 +35,15 @@ func (m *MockMetricCollector) EXPECT() *MockMetricCollectorMockRecorder {
 }
 
 // QueryDurationObserve mocks base method.
-func (m *MockMetricCollector) QueryDurationObserve(arg0, arg1, arg2, arg3 string, arg4 bool, arg5 time.Duration) {
+func (m *MockMetricCollector) QueryDurationObserve(arg0, arg1, arg2, arg3, arg4 string, arg5 bool, arg6 time.Duration) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "QueryDurationObserve", arg0, arg1, arg2, arg3, arg4, arg5)
+	m.ctrl.Call(m, "QueryDurationObserve", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // QueryDurationObserve indicates an expected call of QueryDurationObserve.
-func (mr *MockMetricCollectorMockRecorder) QueryDurationObserve(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+func (mr *MockMetricCollectorMockRecorder) QueryDurationObserve(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryDurationObserve", reflect.TypeOf((*MockMetricCollector)(nil).QueryDurationObserve), arg0, arg1, arg2, arg3, arg4, arg5)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryDurationObserve", reflect.TypeOf((*MockMetricCollector)(nil).QueryDurationObserve), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // SerializationFailureInc mocks base method.

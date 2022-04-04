@@ -57,13 +57,22 @@ func (m *Metrics) SerializationFailureInc(dbType, dbAddr, dbName string) {
 	}).Inc()
 }
 
-func (m *Metrics) QueryDurationObserve(dbType, dbAddr, dbName, operation string, isError bool, since time.Duration) {
+func (m *Metrics) QueryDurationObserve(
+	dbType,
+	dbAddr,
+	dbName,
+	operation,
+	table string,
+	isError bool,
+	since time.Duration,
+) {
 	m.queryDuration.With(prometheus.Labels{
 		"db_type":   dbType,
 		"db_addr":   dbAddr,
 		"db_name":   dbName,
 		"is_error":  strconv.FormatBool(isError),
 		"operation": operation,
+		"table":     table,
 	}).Observe(float64(since) / float64(time.Millisecond))
 }
 
@@ -75,7 +84,7 @@ func queryDurationSummaryVec() *prometheus.SummaryVec {
 			Help:       "Summary of response time for SQL queries (milliseconds)",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, // nolint:gomnd // it's ok
 		},
-		[]string{"db_type", "db_addr", "db_name", "is_error", "operation"},
+		[]string{"db_type", "db_addr", "db_name", "is_error", "operation", "table"},
 	)
 }
 
