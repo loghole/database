@@ -1,34 +1,34 @@
 package hooks
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/loghole/dbhook"
 
 	"github.com/loghole/database/internal/helpers"
+	"github.com/loghole/database/internal/query"
 )
 
 type MetricCollector interface {
 	SerializationFailureInc(dbType, dbAddr, dbName string)
-	QueryDurationObserve(dbType, dbAddr, dbName, operation string, isError bool, since time.Duration)
+	QueryDurationObserve(dbType, dbAddr, dbName, operation, table string, isError bool, since time.Duration)
 }
 
 type MetricsHook struct {
 	startedAtContextKey struct{}
 
 	config    *Config
+	parser    *query.Parser
 	collector MetricCollector
 }
 
 func NewMetricsHook(config *Config, collector MetricCollector) *MetricsHook {
 	return &MetricsHook{
 		config:    config,
+		parser:    query.NewParser(),
 		collector: collector,
 	}
 }
@@ -53,11 +53,14 @@ func (h *MetricsHook) Error(ctx context.Context, input *dbhook.HookInput) (conte
 
 func (h *MetricsHook) finish(ctx context.Context, input *dbhook.HookInput) (context.Context, error) {
 	if startedAt, ok := ctx.Value(h.startedAtContextKey).(time.Time); ok {
+		operation, table := h.parseOperation(input)
+
 		h.collector.QueryDurationObserve(
 			h.config.Type,
 			h.config.Addr,
 			h.config.Database,
-			h.parseOperation(input),
+			operation,
+			table,
 			h.isError(input.Error),
 			time.Since(startedAt),
 		)
@@ -72,79 +75,13 @@ func (h *MetricsHook) isError(err error) bool {
 		!helpers.IsSerialisationFailureErr(err)
 }
 
-func (h *MetricsHook) parseOperation(input *dbhook.HookInput) string {
+func (h *MetricsHook) parseOperation(input *dbhook.HookInput) (operation, table string) {
 	switch input.Caller { // nolint:exhaustive // not need other types.
 	case dbhook.CallerBegin, dbhook.CallerCommit, dbhook.CallerRollback:
-		return "tx." + string(input.Caller)
+		return "tx." + string(input.Caller), ""
 	}
 
-	scan := bufio.NewScanner(strings.NewReader(input.Query))
-	scan.Split(scanSQLToken)
+	parsed := h.parser.Parse(input.Query)
 
-	for scan.Scan() {
-		switch txt := strings.ToLower(scan.Text()); txt {
-		case "select",
-			"insert",
-			"update",
-			"delete",
-			"call",
-			"exec",
-			"execute":
-			return txt
-		}
-	}
-
-	return "unknown"
-}
-
-func scanSQLToken(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	// Skip leading spaces.
-	var start int
-
-	for width := 0; start < len(data); start += width { // nolint:wastedassign // width used
-		var r rune
-
-		r, width = utf8.DecodeRune(data[start:])
-
-		if !isDelimiter(r) {
-			break
-		}
-	}
-
-	// Scan until space, marking end of word.
-	for width, i := 0, start; i < len(data); i += width { // nolint:wastedassign // width used
-		var r rune
-
-		r, width = utf8.DecodeRune(data[i:])
-
-		if isDelimiter(r) {
-			return i + width, data[start:i], nil
-		}
-	}
-
-	// If we're at EOF, we have a final, non-empty, non-terminated word. Return it.
-	if atEOF && len(data) > start {
-		return len(data), data[start:], nil
-	}
-
-	// Request more data.
-	return start, nil, nil
-}
-
-func isDelimiter(r rune) bool {
-	// High-valued ones.
-	if '\u2000' <= r && r <= '\u200a' {
-		return true
-	}
-
-	switch r {
-	case ' ', '\t', '\n', '\v', '\f', '\r', ';', '(', ')', '.', ',':
-		return true
-	case '\u0085', '\u00A0':
-		return true
-	case '\u1680', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000':
-		return true
-	default:
-		return false
-	}
+	return parsed.Type.String(), parsed.Table
 }

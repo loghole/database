@@ -30,6 +30,7 @@ func TestMetrics_QueryDurationObserve(t *testing.T) {
 		dbAddr    string
 		dbName    string
 		operation string
+		table     string
 		isError   bool
 		since     time.Duration
 	}
@@ -48,6 +49,7 @@ func TestMetrics_QueryDurationObserve(t *testing.T) {
 				dbAddr:    "2",
 				dbName:    "3",
 				operation: "4",
+				table:     "5",
 				isError:   true,
 				since:     time.Second,
 			},
@@ -58,7 +60,7 @@ func TestMetrics_QueryDurationObserve(t *testing.T) {
 			m := &Metrics{
 				queryDuration: tt.fields.queryDuration,
 			}
-			m.QueryDurationObserve(tt.args.dbType, tt.args.dbAddr, tt.args.dbName, tt.args.operation, tt.args.isError, tt.args.since)
+			m.QueryDurationObserve(tt.args.dbType, tt.args.dbAddr, tt.args.dbName, tt.args.operation, tt.args.table, tt.args.isError, tt.args.since)
 		})
 	}
 }
@@ -97,25 +99,6 @@ func TestMetrics_SerializationFailureInc(t *testing.T) {
 				serializationFailure: tt.fields.serializationFailure,
 			}
 			m.SerializationFailureInc(tt.args.dbType, tt.args.dbAddr, tt.args.dbName)
-		})
-	}
-}
-
-func TestNewMetrics1(t *testing.T) {
-	tests := []struct {
-		name    string
-		want    *Metrics
-		wantErr assert.ErrorAssertionFunc
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewMetrics()
-			if !tt.wantErr(t, err, fmt.Sprintf("NewMetrics()")) {
-				return
-			}
-			assert.Equalf(t, tt.want, got, "NewMetrics()")
 		})
 	}
 }
