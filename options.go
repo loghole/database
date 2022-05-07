@@ -17,7 +17,7 @@ const (
 	DefaultRetryAttempts          = 10
 	DefaultRetryInitialBackoff    = time.Millisecond
 	DefaultRetryMaxBackoff        = time.Millisecond * 100
-	DefaultRetryBackoffMultiplier = 1
+	DefaultRetryBackoffMultiplier = 1.5
 )
 
 type options struct {

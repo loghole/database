@@ -172,15 +172,9 @@ func (db *DB) withRetry(ctx context.Context, fn func() error) error {
 		err     error
 	)
 
-	for {
-		attempt++
-
+	for attempt = 1; attempt <= retryPolicy.MaxAttempts; attempt++ {
 		if err = fn(); err == nil || !retryPolicy.ErrIsRetryable(err) {
 			return err
-		}
-
-		if attempt >= retryPolicy.MaxAttempts {
-			return ErrMaxRetryAttempts
 		}
 
 		var (
@@ -202,4 +196,6 @@ func (db *DB) withRetry(ctx context.Context, fn func() error) error {
 			return ctx.Err()
 		}
 	}
+
+	return ErrMaxRetryAttempts
 }
