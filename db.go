@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -18,6 +19,11 @@ const (
 	_withHookDriverName = "%s-with-hook-%s"
 	_txSpanName         = "SQL Tx"
 	_defaultTracerName  = "github.com/loghole/database"
+)
+
+var (
+	ErrMaxRetryAttempts = errors.New("max retry attempts has been reached")
+	ErrInvalidConfig    = errors.New("invalid config")
 )
 
 type DB struct {
@@ -54,7 +60,7 @@ func New(cfg *Config, opts ...Option) (db *DB, err error) {
 		return nil, fmt.Errorf("new db: %w", err)
 	}
 
-	db.hooksCfg.Instance = getDBInstans(db.DB)
+	db.hooksCfg.Instance = getDBIInstance(db.DB)
 	db.hooksCfg.ReconnectFn = db.reconnect
 
 	return db, nil
@@ -68,14 +74,6 @@ func New(cfg *Config, opts ...Option) (db *DB, err error) {
 // long-lived and shared between many goroutines.
 func (db *DB) Close() error {
 	return db.DB.Close()
-}
-
-func getDBInstans(db *sqlx.DB) string {
-	var nodeID int
-
-	_ = db.Get(&nodeID, `SHOW node_id`)
-
-	return strconv.Itoa(nodeID)
 }
 
 func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
@@ -114,10 +112,10 @@ func (db *DB) reconnect() error {
 	return nil
 }
 
-func (db *DB) errIsRetryable(retryCount int, err error) bool {
-	if fn := db.options.retryFunc; err != nil && fn != nil {
-		return fn(retryCount, err)
-	}
+func getDBIInstance(db *sqlx.DB) string {
+	var nodeID int
 
-	return false
+	_ = db.Get(&nodeID, `SHOW node_id`)
+
+	return strconv.Itoa(nodeID)
 }

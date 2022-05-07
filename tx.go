@@ -44,29 +44,11 @@ func (db *DB) RunTxxWithOptions(ctx context.Context, opts *sql.TxOptions, fn Tra
 		Start(ctx, _txSpanName, trace.WithSpanKind(trace.SpanKindInternal))
 	defer span.End()
 
-	var (
-		retryCount int
-		err        error
-	)
-
-	// Retry transaction.
-	for {
-		retryCount++
-
-		if err = db.runTxx(ctx, opts, fn); !db.errIsRetryable(retryCount, err) {
-			break
-		}
-	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return db.withRetry(ctx, func() error { return db.runTxx(ctx, opts, fn) })
 }
 
 func (db *DB) runTxx(ctx context.Context, opts *sql.TxOptions, fn TransactionFunc) error {
-	tx, err := db.BeginTxx(ctx, opts)
+	tx, err := db.DB.BeginTxx(ctx, opts)
 	if err != nil {
 		return err
 	}

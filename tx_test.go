@@ -220,13 +220,17 @@ func TestDB_RunTxxWithOptions(t *testing.T) {
 func TestDB_RetryTx(t *testing.T) {
 	var errors []string
 
-	retryFn := func(retryCount int, err error) bool {
-		errors = append(errors, err.Error())
+	db := memorySQLLite(t, WithRetryPolicy(RetryPolicy{
+		MaxAttempts:       5,
+		InitialBackoff:    1,
+		MaxBackoff:        1,
+		BackoffMultiplier: 1,
+		ErrIsRetryable: func(err error) bool {
+			errors = append(errors, err.Error())
 
-		return retryCount < 5
-	}
-
-	db := memorySQLLite(t, WithRetryFunc(retryFn))
+			return true
+		},
+	}))
 
 	err := db.RunTxx(context.Background(), func(ctx context.Context, tx *sqlx.Tx) error {
 		_, err := tx.ExecContext(context.Background(), "SELECT * FROM foo")

@@ -552,7 +552,7 @@ func TestDB_PrepareNamedContext(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db := memorySQLLite(t, WithReconnectHook(), WithPQRetryFunc(1))
+			db := memorySQLLite(t, WithReconnectHook(), WithPQRetryFunc(0))
 			defer db.Close()
 
 			gotStmt, err := db.PrepareNamedContext(tt.args.ctx, tt.args.query)
@@ -574,13 +574,17 @@ func TestDB_PrepareNamedContext(t *testing.T) {
 func TestDB_RetryQuery(t *testing.T) {
 	var errors []string
 
-	retryFn := func(retryCount int, err error) bool {
-		errors = append(errors, err.Error())
+	db := memorySQLLite(t, WithRetryPolicy(RetryPolicy{
+		MaxAttempts:       5,
+		InitialBackoff:    1,
+		MaxBackoff:        1,
+		BackoffMultiplier: 1,
+		ErrIsRetryable: func(err error) bool {
+			errors = append(errors, err.Error())
 
-		return retryCount < 5
-	}
-
-	db := memorySQLLite(t, WithRetryFunc(retryFn))
+			return true
+		},
+	}))
 
 	_, err := db.ExecContext(context.Background(), "SELECT * FROM foo")
 	assert.Error(t, err, "db.ExecContext")
@@ -591,6 +595,29 @@ func TestDB_RetryQuery(t *testing.T) {
 		"no such table: foo",
 		"no such table: foo",
 	})
+}
+
+func TestDB_RetryQueryContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var errors []string
+
+	db := memorySQLLite(t, WithRetryPolicy(RetryPolicy{
+		MaxAttempts:       5,
+		InitialBackoff:    1,
+		MaxBackoff:        1,
+		BackoffMultiplier: 1,
+		ErrIsRetryable: func(err error) bool {
+			errors = append(errors, err.Error())
+			cancel()
+
+			return true
+		},
+	}))
+
+	_, err := db.ExecContext(ctx, "SELECT * FROM foo")
+	assert.EqualError(t, err, "context canceled")
+	assert.Equal(t, errors, []string{"no such table: foo"})
 }
 
 func memorySQLLite(t *testing.T, opts ...Option) *DB {

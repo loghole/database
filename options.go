@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/loghole/dbhook"
 	"go.opentelemetry.io/otel/trace"
@@ -12,10 +13,15 @@ import (
 	"github.com/loghole/database/internal/metrics"
 )
 
-const DefaultRetryAttempts = 10
+const (
+	DefaultRetryAttempts          = 10
+	DefaultRetryInitialBackoff    = time.Millisecond
+	DefaultRetryMaxBackoff        = time.Millisecond * 100
+	DefaultRetryBackoffMultiplier = 1
+)
 
 type options struct {
-	retryFunc   RetryFunc
+	retryPolicy *RetryPolicy
 	hookOptions []dbhook.HookOption
 }
 
@@ -113,29 +119,19 @@ func WithPrometheusMetrics() Option {
 	})
 }
 
-func WithRetryFunc(f RetryFunc) Option {
-	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
-		opts.retryFunc = f
-
-		return nil
-	})
-}
-
 func WithPQRetryFunc(maxAttempts int) Option {
 	if maxAttempts == 0 {
 		maxAttempts = DefaultRetryAttempts
 	}
 
-	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
-		opts.retryFunc = func(retryCount int, err error) bool {
-			if retryCount >= maxAttempts {
-				return false
-			}
-
+	return WithRetryPolicy(RetryPolicy{
+		MaxAttempts:       maxAttempts,
+		InitialBackoff:    DefaultRetryInitialBackoff,
+		MaxBackoff:        DefaultRetryMaxBackoff,
+		BackoffMultiplier: DefaultRetryBackoffMultiplier,
+		ErrIsRetryable: func(err error) bool {
 			return helpers.IsSerialisationFailureErr(err) || errors.Is(err, hooks.ErrCanRetry)
-		}
-
-		return nil
+		},
 	})
 }
 
@@ -158,6 +154,66 @@ func WithDefaultOptions(tracer trace.Tracer) Option {
 				return err // nolint:wrapcheck // need clean err.
 			}
 		}
+
+		return nil
+	})
+}
+
+// RetryPolicy defines retry policy for queries.
+//
+// nolint:govet // not need for config.
+type RetryPolicy struct {
+	// MaxAttempts is the maximum number of attempts.
+	//
+	// This field is required and must be two or greater.
+	MaxAttempts int
+
+	// Exponential backoff parameters. The initial retry attempt will occur at
+	// random(0, InitialBackoff). In general, the nth attempt will occur at
+	// random(0, min(InitialBackoff*BackoffMultiplier**(n-1), MaxBackoff)).
+	//
+	// These fields are required and must be greater than zero.
+	InitialBackoff    time.Duration
+	MaxBackoff        time.Duration
+	BackoffMultiplier float64
+
+	// Reports when error is retryable.
+	//
+	// This field is required and must be non-empty.
+	ErrIsRetryable func(err error) bool
+}
+
+func (rp *RetryPolicy) validate() error {
+	if rp.MaxAttempts <= 1 {
+		return fmt.Errorf("%w: RetryPolicy: MaxAttempts must be two or greater", ErrInvalidConfig)
+	}
+
+	if rp.InitialBackoff < 0 {
+		return fmt.Errorf("%w: RetryPolicy: InitialBackoff must be greater than zero", ErrInvalidConfig)
+	}
+
+	if rp.MaxBackoff < 0 {
+		return fmt.Errorf("%w: RetryPolicy: MaxBackoff must be greater than zero", ErrInvalidConfig)
+	}
+
+	if rp.BackoffMultiplier < 0 {
+		return fmt.Errorf("%w: RetryPolicy: BackoffMultiplier must be greater than zero", ErrInvalidConfig)
+	}
+
+	if rp.ErrIsRetryable == nil {
+		return fmt.Errorf("%w: RetryPolicy: ErrIsRetryable required and must be non-empty", ErrInvalidConfig)
+	}
+
+	return nil
+}
+
+func WithRetryPolicy(retryPolicy RetryPolicy) Option {
+	return newFuncOption(func(opts *options, cfg *hooks.Config) error {
+		if err := retryPolicy.validate(); err != nil {
+			return err
+		}
+
+		opts.retryPolicy = &retryPolicy
 
 		return nil
 	})
