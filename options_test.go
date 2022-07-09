@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
+	"github.com/golang/mock/gomock"
 	"github.com/loghole/database/hooks"
+	"github.com/loghole/database/mocks"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWithRetryPolicy(t *testing.T) {
@@ -113,6 +114,37 @@ func TestWithRetryPolicy(t *testing.T) {
 			}))
 
 			tt.wantErr(t, err, fmt.Sprintf("validate()"))
+		})
+	}
+}
+
+func TestWithMetricsHook(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	type args struct {
+		collector hooks.MetricCollector
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "pass",
+			args: args{
+				collector: mocks.NewMockMetricCollector(ctrl),
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts options
+
+			err := opts.apply(&hooks.Config{}, WithMetricsHook(tt.args.collector))
+
+			tt.wantErr(t, err, "metrics hook")
 		})
 	}
 }

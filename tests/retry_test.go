@@ -25,7 +25,7 @@ func (c *collector) SerializationFailureInc(dbType, dbAddr, dbName string) {
 	atomic.AddInt64(&c.serializationFailureInc, 1)
 }
 
-func (c *collector) QueryDurationObserve(dbType, dbAddr, dbName, operation string, isError bool, since time.Duration) {
+func (c *collector) QueryDurationObserve(dbType, dbAddr, dbName, operation, table string, isError bool, since time.Duration) {
 	atomic.AddInt64(&c.queryDurationObserve, 1)
 }
 
@@ -48,7 +48,7 @@ func TestMetrics(t *testing.T) {
 		Addr:     "postgres:5432",
 		User:     "postgres:password",
 		Database: "postgres",
-		Type:     database.PostgresDatabase,
+		Type:     database.PGXDatabase,
 	}, database.WithMetricsHook(metric))
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestMetrics(t *testing.T) {
 	metric.reset()
 
 	_, err = db.ExecContext(ctx, `INSERT INTO test_metric (id, name) VALUES ($1, $2)`, 3, "3")
-	assert.EqualError(t, err, "pq: duplicate key value violates unique constraint \"test_metric_pkey\"")
+	assert.EqualError(t, err, "ERROR: duplicate key value violates unique constraint \"test_metric_pkey\" (SQLSTATE 23505)")
 
 	metric.check(t, 0, 1)
 	metric.reset()

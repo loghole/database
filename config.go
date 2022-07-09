@@ -11,6 +11,7 @@ import (
 type DBType string
 
 const (
+	PGXDatabase        DBType = "pgx"
 	PostgresDatabase   DBType = "postgres"
 	ClickhouseDatabase DBType = "clickhouse"
 	SQLiteDatabase     DBType = "sqlite3"
@@ -35,7 +36,7 @@ type Config struct {
 
 func (cfg *Config) DSN() string {
 	switch cfg.Type {
-	case PostgresDatabase:
+	case PostgresDatabase, PGXDatabase:
 		return cfg.postgresConnString()
 	case ClickhouseDatabase:
 		return cfg.clickhouseConnString()

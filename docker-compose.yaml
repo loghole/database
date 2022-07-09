@@ -1,7 +1,7 @@
 version: "3"
 services:
   tests:
-    image: golang:1.17
+    image: golang:1.18
     volumes:
       - ./:/src
       - go-mod-cache:/go/pkg
@@ -14,8 +14,8 @@ services:
       - jaeger
 
   cockroachdb:
-    image: cockroachdb/cockroach:v20.2.3
-    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080
+    image: cockroachdb/cockroach:v22.1.2
+    command: start-single-node --insecure --store=type=mem,size=250MiB --host=0.0.0.0 --http-addr=0.0.0.0:8080
   
   haproxy:
     image: haproxy:2.3

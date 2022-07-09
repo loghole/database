@@ -141,7 +141,7 @@ func scanSQLToken(data []byte, atEOF bool) (advance int, token []byte, err error
 	// Skip leading spaces.
 	var start int
 
-	for width := 0; start < len(data); start += width { // nolint:wastedassign // width used
+	for width := 0; start < len(data); start += width {
 		var r rune
 
 		r, width = utf8.DecodeRune(data[start:])
@@ -152,7 +152,7 @@ func scanSQLToken(data []byte, atEOF bool) (advance int, token []byte, err error
 	}
 
 	// Scan until space, marking end of word.
-	for width, i := 0, start; i < len(data); i += width { // nolint:wastedassign // width used
+	for width, i := 0, start; i < len(data); i += width {
 		var r rune
 
 		r, width = utf8.DecodeRune(data[i:])
