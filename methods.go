@@ -101,7 +101,6 @@ func (db *DB) QueryxContext(ctx context.Context, query string, args ...interface
 	err = db.withRetry(ctx, func() error {
 		var err error
 
-		// nolint:sqlclosecheck // will be closed at the upper level
 		if rows, err = db.DB.QueryxContext(ctx, query, args...); err != nil {
 			return err
 		}
@@ -118,7 +117,6 @@ func (db *DB) NamedQueryContext(ctx context.Context, query string, arg interface
 	err = db.withRetry(ctx, func() error {
 		var err error
 
-		// nolint:sqlclosecheck // will be closed at the upper level
 		if rows, err = db.DB.NamedQueryContext(ctx, query, arg); err != nil {
 			return err
 		}
@@ -134,7 +132,6 @@ func (db *DB) PreparexContext(ctx context.Context, query string) (stmt *sqlx.Stm
 	err = db.withRetry(ctx, func() error {
 		var err error
 
-		// nolint:sqlclosecheck // will be closed at the upper level
 		if stmt, err = db.DB.PreparexContext(ctx, query); err != nil {
 			return err
 		}

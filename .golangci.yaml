@@ -10,6 +10,8 @@ linters:
     - exhaustivestruct
     - wrapcheck
     - ireturn
+    - nonamedreturns
+    - exhaustruct
   fast: false
 linters-settings:
   gocritic:

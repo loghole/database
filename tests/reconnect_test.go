@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -35,7 +35,7 @@ func TestReconnectHook(t *testing.T) {
 	db, err := database.New(&database.Config{
 		Addr:     "haproxy:12757",
 		User:     "root",
-		Type:     database.PostgresDatabase,
+		Type:     database.PGXDatabase,
 		Database: dbName,
 	}, database.WithReconnectHook(), database.WithTracingHook(trace))
 	if err != nil {
@@ -79,7 +79,7 @@ func TestReconnectHook_WithRetryFunc(t *testing.T) {
 	db, err := database.New(&database.Config{
 		Addr:     "haproxy:12757",
 		User:     "root",
-		Type:     database.PostgresDatabase,
+		Type:     database.PGXDatabase,
 		Database: dbName,
 	}, database.WithReconnectHook(), database.WithCockroachRetryFunc(), database.WithTracingHook(trace))
 	if err != nil {
@@ -119,7 +119,7 @@ func initDatabase(t *testing.T, name string) {
 	db, err := database.New(&database.Config{
 		Addr: "haproxy:12757",
 		User: "root",
-		Type: database.PostgresDatabase,
+		Type: database.PGXDatabase,
 	})
 	if err != nil {
 		t.Error(err)
