@@ -118,6 +118,8 @@ func (db *DB) SetMaxOpenConns(n int) {
 }
 
 func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
+	const base = 36
+
 	if hook == nil { // skip wrapping for empty hook.
 		return driverName, nil
 	}
@@ -130,8 +132,7 @@ func wrapDriver(driverName string, hook dbhook.Hook) (string, error) {
 
 	defer db.Close()
 
-	// nolint:gomnd // num base ok
-	newDriverName := fmt.Sprintf(_withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), 36))
+	newDriverName := fmt.Sprintf(_withHookDriverName, driverName, strconv.FormatInt(time.Now().UnixNano(), base))
 
 	// Register wrapped driver with new name for open it later.
 	sql.Register(newDriverName, dbhook.Wrap(db.Driver(), hook))

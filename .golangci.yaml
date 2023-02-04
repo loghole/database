@@ -12,6 +12,7 @@ linters:
     - ireturn
     - nonamedreturns
     - exhaustruct
+    - nosnakecase
   fast: false
 linters-settings:
   gocritic:

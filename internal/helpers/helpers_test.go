@@ -19,7 +19,7 @@ func TestIsSerialisationFailureErr(t *testing.T) {
 		{
 			name: "base",
 			args: args{
-				err: pq.Error{Code: _pqSerializationFailureCode},
+				err: &pq.Error{Code: pq.ErrorCode(_pqSerializationFailureCode)},
 			},
 			want: true,
 		},

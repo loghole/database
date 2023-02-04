@@ -12,18 +12,19 @@ import (
 // If an error occurs, the transaction will be retried if it allows `RetryFunc`.
 //
 // Example:
-// 	err := db.RunTxx(ctx, func(ctx context.Context, tx *sqlx.Tx) error {
-// 		var val time.Time
 //
-// 		if err := tx.GetContext(ctx, &val, "SELECT now()"); err != nil {
-// 			return err
-// 		}
+//	err := db.RunTxx(ctx, func(ctx context.Context, tx *sqlx.Tx) error {
+//		var val time.Time
 //
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		return err
-// 	}
+//		if err := tx.GetContext(ctx, &val, "SELECT now()"); err != nil {
+//			return err
+//		}
+//
+//		return nil
+//	})
+//	if err != nil {
+//		return err
+//	}
 func (db *DB) RunTxx(ctx context.Context, fn TransactionFunc) error {
 	return db.RunTxxWithOptions(ctx, &sql.TxOptions{}, fn)
 }
@@ -60,7 +61,7 @@ func (db *DB) runTxx(ctx context.Context, opts *sql.TxOptions, fn TransactionFun
 	}
 
 	if err := tx.Commit(); err != nil {
-		return err // nolint:wrapcheck // need clean error
+		return err //nolint:wrapcheck // need clean error
 	}
 
 	return nil

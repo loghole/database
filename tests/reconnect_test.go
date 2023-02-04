@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/loghole/database"
@@ -59,7 +59,7 @@ func TestReconnectHook(t *testing.T) {
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second * 5) // nolint:gomnd // it's ok.
+	time.Sleep(time.Second * 5) //nolint:gomnd // it's ok.
 
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.ErrorIs(t, err, hooks.ErrCanRetry)
@@ -103,7 +103,7 @@ func TestReconnectHook_WithRetryFunc(t *testing.T) {
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second * 5) // nolint:gomnd // it's ok.
+	time.Sleep(time.Second * 5) //nolint:gomnd // it's ok.
 
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.NoError(t, err)
