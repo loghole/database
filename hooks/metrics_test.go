@@ -172,7 +172,7 @@ func TestMetricsHook(t *testing.T) {
 
 				ctx, _ = hook.Before(ctx, input)
 
-				input.Error = pq.Error{Code: "40001"}
+				input.Error = &pq.Error{Code: "40001"}
 
 				ctx, _ = hook.Error(ctx, input)
 			},

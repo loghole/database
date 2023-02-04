@@ -28,7 +28,7 @@ type options struct {
 func (o *options) apply(cfg *hooks.Config, opts ...Option) error {
 	for _, opt := range opts {
 		if err := opt.apply(o, cfg); err != nil {
-			return err // nolint:wrapcheck // need clean err.
+			return err //nolint:wrapcheck // need clean err.
 		}
 	}
 
@@ -151,7 +151,7 @@ func WithDefaultOptions(tracer trace.Tracer) Option {
 
 		for _, opt := range list {
 			if err := opt.apply(opts, cfg); err != nil {
-				return err // nolint:wrapcheck // need clean err.
+				return err //nolint:wrapcheck // need clean err.
 			}
 		}
 
@@ -161,7 +161,7 @@ func WithDefaultOptions(tracer trace.Tracer) Option {
 
 // RetryPolicy defines retry policy for queries.
 //
-// nolint:govet // not need for config.
+//nolint:govet // not need for config.
 type RetryPolicy struct {
 	// MaxAttempts is the maximum number of attempts.
 	//

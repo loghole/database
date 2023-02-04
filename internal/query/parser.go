@@ -2,7 +2,7 @@ package query
 
 import (
 	"bufio"
-	"crypto/md5" // nolint:gosec // not need.
+	"crypto/md5" //nolint:gosec // not need.
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -60,7 +60,7 @@ func (p *Parser) Parse(stmt string) Operation {
 	stmt = strings.ReplaceAll(stmt, "\n", " ")
 	stmt = strings.ToLower(strings.TrimSpace(stmt))
 
-	hash := md5.Sum([]byte(stmt)) // nolint:gosec // not need.
+	hash := md5.Sum([]byte(stmt)) //nolint:gosec // not need.
 
 	if operation, ok := p.cached(hash); ok {
 		return operation

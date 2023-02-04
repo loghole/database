@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// nolint:gochecknoglobals // singleton object.
+//nolint:gochecknoglobals // singleton object.
 var (
 	_metrics     *Metrics
 	_metricsMu   sync.Mutex
@@ -76,13 +76,13 @@ func (m *Metrics) QueryDurationObserve(
 	}).Observe(float64(since) / float64(time.Millisecond))
 }
 
-// nolint:promlinter // skip milliseconds.
+//nolint:promlinter // skip milliseconds.
 func queryDurationSummaryVec() *prometheus.SummaryVec {
 	return prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "sql_query_duration_milliseconds",
 			Help:       "Summary of response time for SQL queries (milliseconds)",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, // nolint:gomnd // it's ok
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}, //nolint:gomnd // it's ok
 		},
 		[]string{"db_type", "db_addr", "db_name", "is_error", "operation", "table"},
 	)

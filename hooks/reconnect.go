@@ -39,5 +39,6 @@ func isReconnectError(err error) bool {
 	return strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "bad connection") ||
 		strings.Contains(msg, "connection timed out") ||
-		strings.Contains(msg, "unexpected EOF")
+		strings.Contains(msg, "unexpected EOF") ||
+		strings.Contains(msg, "server is not accepting clients")
 }

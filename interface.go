@@ -7,6 +7,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+//nolint:interfacebloat // it's ok
 type Database interface {
 	// SelectContext using this DB.
 	// Any placeholder parameters are replaced with supplied args.

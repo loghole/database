@@ -76,7 +76,7 @@ func (h *MetricsHook) isError(err error) bool {
 }
 
 func (h *MetricsHook) parseOperation(input *dbhook.HookInput) (operation, table string) {
-	switch input.Caller { // nolint:exhaustive // not need other types.
+	switch input.Caller { //nolint:exhaustive // not need other types.
 	case dbhook.CallerBegin, dbhook.CallerCommit, dbhook.CallerRollback:
 		return "tx." + string(input.Caller), ""
 	}

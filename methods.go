@@ -183,7 +183,7 @@ func (db *DB) withRetry(ctx context.Context, fn func() error) error {
 			cur = max
 		}
 
-		timer := time.NewTimer(time.Duration(rand.Int63n(int64(cur)))) // nolint:gosec // normal for this case.
+		timer := time.NewTimer(time.Duration(rand.Int63n(int64(cur)))) //nolint:gosec // normal for this case.
 		select {
 		case <-timer.C:
 			continue
