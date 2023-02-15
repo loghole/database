@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -597,10 +598,36 @@ func TestDB_RetryQuery(t *testing.T) {
 	})
 }
 
+func TestDB_RetryQuery2(t *testing.T) {
+	var errors []string
+
+	db := memorySQLLite(t, WithRetryPolicy(RetryPolicy{
+		MaxAttempts:       5,
+		InitialBackoff:    1,
+		MaxBackoff:        1,
+		BackoffMultiplier: 2,
+		ErrIsRetryable: func(err error) bool {
+			errors = append(errors, err.Error())
+
+			return true
+		},
+	}))
+
+	_, err := db.ExecContext(context.Background(), "SELECT * FROM foo")
+	assert.Error(t, err, "db.ExecContext")
+	assert.Equal(t, errors, []string{
+		"no such table: foo",
+		"no such table: foo",
+		"no such table: foo",
+		"no such table: foo",
+		"no such table: foo",
+	})
+}
+
 func TestDB_RetryQueryContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var errors []string
+	var errs []string
 
 	db := memorySQLLite(t, WithRetryPolicy(RetryPolicy{
 		MaxAttempts:       5,
@@ -608,7 +635,11 @@ func TestDB_RetryQueryContextCanceled(t *testing.T) {
 		MaxBackoff:        1,
 		BackoffMultiplier: 1,
 		ErrIsRetryable: func(err error) bool {
-			errors = append(errors, err.Error())
+			if errors.Is(err, context.Canceled) {
+				return false
+			}
+
+			errs = append(errs, err.Error())
 			cancel()
 
 			return true
@@ -616,8 +647,8 @@ func TestDB_RetryQueryContextCanceled(t *testing.T) {
 	}))
 
 	_, err := db.ExecContext(ctx, "SELECT * FROM foo")
-	assert.EqualError(t, err, "context canceled")
-	assert.Equal(t, errors, []string{"no such table: foo"})
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, errs, []string{"no such table: foo"})
 }
 
 func memorySQLLite(t *testing.T, opts ...Option) *DB {

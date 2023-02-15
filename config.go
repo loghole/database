@@ -13,11 +13,16 @@ type DBType string
 const (
 	PGXDatabase        DBType = "pgx"
 	PostgresDatabase   DBType = "postgres"
+	CockroachDatabase  DBType = "cockroach"
 	ClickhouseDatabase DBType = "clickhouse"
 	SQLiteDatabase     DBType = "sqlite3"
 )
 
 func (d DBType) String() string {
+	if d == CockroachDatabase {
+		return string(PostgresDatabase)
+	}
+
 	return string(d)
 }
 
@@ -36,7 +41,7 @@ type Config struct {
 
 func (cfg *Config) DSN() string {
 	switch cfg.Type {
-	case PostgresDatabase, PGXDatabase:
+	case PostgresDatabase, PGXDatabase, CockroachDatabase:
 		return cfg.postgresConnString()
 	case ClickhouseDatabase:
 		return cfg.clickhouseConnString()
