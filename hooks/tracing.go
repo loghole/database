@@ -7,7 +7,7 @@ import (
 
 	"github.com/loghole/dbhook"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.13.0"
 	"go.opentelemetry.io/otel/trace"
 )
 

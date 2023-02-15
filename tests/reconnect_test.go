@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.13.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/loghole/database"
@@ -35,7 +35,7 @@ func TestReconnectHook(t *testing.T) {
 	db, err := database.New(&database.Config{
 		Addr:     "haproxy:12757",
 		User:     "root",
-		Type:     database.PGXDatabase,
+		Type:     database.CockroachDatabase,
 		Database: dbName,
 	}, database.WithReconnectHook(), database.WithTracingHook(trace))
 	if err != nil {
@@ -59,7 +59,7 @@ func TestReconnectHook(t *testing.T) {
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second * 5) //nolint:gomnd // it's ok.
+	time.Sleep(5 * time.Second) //nolint:gomnd // it's ok.
 
 	err = db.GetContext(ctx, &val, `SELECT name FROM test LIMIT 1`)
 	assert.ErrorIs(t, err, hooks.ErrCanRetry)

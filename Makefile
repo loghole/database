@@ -19,3 +19,7 @@ test:
 .PHONY: test-integration
 test-integration:
 	docker-compose run --rm tests /bin/sh -c "go test -race -v -tags=integration ./..."
+
+.PHONY: down
+down:
+	docker-compose down    
