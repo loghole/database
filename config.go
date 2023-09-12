@@ -76,8 +76,13 @@ func (cfg *Config) clickhouseConnString() string {
 		cfg.Params = map[string]string{}
 	}
 
-	cfg.Params["username"] = cfg.User
-	cfg.Params["database"] = cfg.Database
+	userParts := strings.Split(cfg.User, ":")
+
+	if len(userParts) > 1 {
+		cfg.Params["password"] = userParts[1]
+	}
+
+	cfg.Params["username"] = userParts[0]
 
 	if cfg.ReadTimeout != "" {
 		cfg.Params["read_timeout"] = cfg.ReadTimeout
@@ -87,7 +92,7 @@ func (cfg *Config) clickhouseConnString() string {
 		cfg.Params["write_timeout"] = cfg.WriteTimeout
 	}
 
-	return fmt.Sprintf("tcp://%s%s", cfg.Addr, cfg.encodeParams())
+	return fmt.Sprintf("clickhouse://%s/%s%s", cfg.Addr, cfg.Database, cfg.encodeParams())
 }
 
 func (cfg *Config) sqliteConnString() string {
