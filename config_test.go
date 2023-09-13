@@ -59,7 +59,7 @@ func TestConfig_DSN(t *testing.T) {
 				ReadTimeout:  "10s",
 				WriteTimeout: "15s",
 			},
-			want: "tcp://127.0.0.1:9000?database=database&read_timeout=10s&username=default&write_timeout=15s",
+			want: "clickhouse://127.0.0.1:9000/database?read_timeout=10s&username=default&write_timeout=15s",
 		},
 		{
 			name: "clickhouse without params",
@@ -69,7 +69,7 @@ func TestConfig_DSN(t *testing.T) {
 				Database: "database",
 				Type:     ClickhouseDatabase,
 			},
-			want: "tcp://127.0.0.1:9000?database=database&username=default",
+			want: "clickhouse://127.0.0.1:9000/database?username=default",
 		},
 		{
 			name: "sqlite",
