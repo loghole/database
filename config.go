@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
 
@@ -28,6 +29,7 @@ func (d DBType) String() string {
 
 type Config struct {
 	Addr         string
+	Addrs        []string // for cockroachdb
 	User         string
 	Database     string
 	Type         DBType
@@ -68,7 +70,13 @@ func (cfg *Config) postgresConnString() string {
 		cfg.Params["sslmode"] = "disable"
 	}
 
-	return fmt.Sprintf("postgres://%s@%s/%s%s", cfg.User, cfg.Addr, cfg.Database, cfg.encodeParams())
+	addr := cfg.Addr
+
+	if len(cfg.Addrs) > 0 {
+		addr = cfg.Addrs[rand.Intn(len(cfg.Addrs))] //nolint:gosec // not a security issue.
+	}
+
+	return fmt.Sprintf("postgres://%s@%s/%s%s", cfg.User, addr, cfg.Database, cfg.encodeParams())
 }
 
 func (cfg *Config) clickhouseConnString() string {

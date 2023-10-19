@@ -160,8 +160,6 @@ func WithDefaultOptions(tracer trace.Tracer) Option {
 }
 
 // RetryPolicy defines retry policy for queries.
-//
-//nolint:govet // not need for config.
 type RetryPolicy struct {
 	// MaxAttempts is the maximum number of attempts.
 	//

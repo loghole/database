@@ -23,6 +23,16 @@ func TestConfig_DSN(t *testing.T) {
 			want: "postgres://postgres@127.0.0.1:5432/database?sslmode=disable",
 		},
 		{
+			name: "postgres with addrs",
+			config: &Config{
+				Addrs:    []string{"127.0.0.1:5432"},
+				User:     "postgres",
+				Database: "database",
+				Type:     PostgresDatabase,
+			},
+			want: "postgres://postgres@127.0.0.1:5432/database?sslmode=disable",
+		},
+		{
 			name: "postgres with certs",
 			config: &Config{
 				Addr:     "127.0.0.1:5432",
